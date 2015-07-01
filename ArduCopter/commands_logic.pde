@@ -88,22 +88,18 @@ static void process_now_command()
 
     case MAV_CMD_DO_SET_SERVO:             // 183
         do_set_servo();
-       // relay.on();
         break;
 
     case MAV_CMD_DO_SET_RELAY:             // 181
         do_set_relay();
-       // relay.on();
         break;
 
     case MAV_CMD_DO_REPEAT_SERVO:             // 184
         do_repeat_servo();
-        //relay.on();
         break;
 
     case MAV_CMD_DO_REPEAT_RELAY:             // 182
         do_repeat_relay();
-        //relay.on();
         break;
 
     case MAV_CMD_DO_SET_ROI:                // 201
@@ -957,7 +953,7 @@ static void do_set_relay()
     } else if (command_cond_queue.p1 == 0) {
         relay.off();
     }else{
-       relay.toggle();
+        relay.toggle();
     }
 }
 

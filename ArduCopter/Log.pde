@@ -303,7 +303,21 @@ struct PACKED log_Optflow {
 // Write an optical flow packet
 static void Log_Write_Optflow()
 {
- 
+ #if OPTFLOW == ENABLED
+    struct log_Optflow pkt = {
+        LOG_PACKET_HEADER_INIT(LOG_OPTFLOW_MSG),
+        dx              : optflow.dx,
+        dy              : optflow.dy,
+        surface_quality : optflow.surface_quality,
+        x_cm            : (int16_t) optflow.x_cm,
+        y_cm            : (int16_t) optflow.y_cm,
+        latitude        : optflow.vlat,
+        longitude       : optflow.vlon,
+        roll            : of_roll,
+        pitch           : of_pitch
+    };
+    DataFlash.WriteBlock(&pkt, sizeof(pkt));
+ #endif     // OPTFLOW == ENABLED
 }
 
 struct PACKED log_Nav_Tuning {

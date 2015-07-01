@@ -1,6 +1,6 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 
-#define THISFIRMWARE "ArduCopter V3.1"
+#define THISFIRMWARE "ArduCopter V3.1.5"
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -110,6 +110,8 @@
 #include <AC_PID.h>             // PID library
 #include <RC_Channel.h>         // RC Channel Library
 #include <AP_Motors.h>          // AP Motors library
+#include <AP_RangeFinder.h>     // Range finder library
+#include <AP_OpticalFlow.h>     // Optical Flow library
 #include <Filter.h>             // Filter library
 #include <AP_Buffer.h>          // APM FIFO Buffer
 #include <AP_Relay.h>           // APM relay
@@ -335,13 +337,17 @@ static SITL sitl;
 ////////////////////////////////////////////////////////////////////////////////
 // Optical flow sensor
 ////////////////////////////////////////////////////////////////////////////////
-
+ #if OPTFLOW == ENABLED
+static AP_OpticalFlow_ADNS3080 optflow;
+ #else
+static AP_OpticalFlow optflow;
+ #endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // GCS selection
 ////////////////////////////////////////////////////////////////////////////////
-static GCS_MAVLINK gcs0;
-static GCS_MAVLINK gcs3;
+static const uint8_t num_gcs = MAVLINK_COMM_NUM_BUFFERS;
+static GCS_MAVLINK gcs[MAVLINK_COMM_NUM_BUFFERS];
 
 ////////////////////////////////////////////////////////////////////////////////
 // SONAR selection
@@ -350,6 +356,7 @@ static GCS_MAVLINK gcs3;
 ModeFilterInt16_Size3 sonar_mode_filter(1);
 #if CONFIG_SONAR == ENABLED
 static AP_HAL::AnalogSource *sonar_analog_source;
+static AP_RangeFinder_MaxsonarXL *sonar;
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -410,7 +417,7 @@ static union {
 ////////////////////////////////////////////////////////////////////////////////
 // This is the state of the flight control system
 // There are multiple states defined such as STABILIZE, ACRO,
-static int8_t control_mode = STABILIZE; //MAI!
+static int8_t control_mode = STABILIZE;
 // Used to maintain the state of the previous control switch position
 // This is set to -1 when we need to re-read the switch
 static uint8_t oldSwitchPosition;
@@ -660,7 +667,7 @@ static int32_t baro_alt;
 // Each Flight mode is a unique combination of these modes
 //
 // The current desired control scheme for Yaw
-static uint8_t yaw_mode = STABILIZE_YAW; // FOR MAI! AEROXO CODE.
+static uint8_t yaw_mode = STABILIZE_YAW;
 // The current desired control scheme for roll and pitch / navigation
 static uint8_t roll_pitch_mode = STABILIZE_RP;
 // The current desired control scheme for altitude hold
@@ -920,20 +927,27 @@ void setup() {
     // initialise battery monitor
     battery.init();
 
+#if CONFIG_SONAR == ENABLED
+ #if CONFIG_SONAR_SOURCE == SONAR_SOURCE_ADC
+    sonar_analog_source = new AP_ADC_AnalogSource(
+            &adc, CONFIG_SONAR_SOURCE_ADC_CHANNEL, 0.25);
+ #elif CONFIG_SONAR_SOURCE == SONAR_SOURCE_ANALOG_PIN
+    sonar_analog_source = hal.analogin->channel(
+            CONFIG_SONAR_SOURCE_ANALOG_PIN);
+ #else
+  #warning "Invalid CONFIG_SONAR_SOURCE"
+ #endif
+    sonar = new AP_RangeFinder_MaxsonarXL(sonar_analog_source,
+            &sonar_mode_filter);
+#endif
 
     rssi_analog_source      = hal.analogin->channel(g.rssi_pin);
     board_vcc_analog_source = hal.analogin->channel(ANALOG_INPUT_BOARD_VCC);
 
     init_ardupilot();
-    
+
     // initialise the main loop scheduler
     scheduler.init(&scheduler_tasks[0], sizeof(scheduler_tasks)/sizeof(scheduler_tasks[0]));
-    hal.rcout->enable_ch(6);
-    hal.rcout->write(6, 1000);
-    hal.rcout->enable_ch(7);
-    hal.rcout->write(7, 1500);
-    
-    hal.rcout->set_freq(0xC0, 50);
 }
 
 /*
@@ -1015,7 +1029,17 @@ static void fast_loop()
     // --------------------------------------------------------------------
     update_trig();
 
-	
+	// Acrobatic control
+    if (ap.do_flip) {
+        if(abs(g.rc_1.control_in) < 4000) {
+            // calling roll_flip will override the desired roll rate and throttle output
+            roll_flip();
+        }else{
+            // force an exit from the loop if we are not hands off sticks.
+            ap.do_flip = false;
+            Log_Write_Event(DATA_EXIT_FLIP);
+        }
+    }
 
     // run low level rate controllers that only require IMU data
     run_rate_controllers();
@@ -1030,16 +1054,17 @@ static void fast_loop()
 
     // optical flow
     // --------------------
+#if OPTFLOW == ENABLED
+    if(g.optflow_enabled) {
+        update_optical_flow();
+    }
+#endif  // OPTFLOW == ENABLED
 
     // Read radio and 3-position switch on radio
     // -----------------------------------------
     read_radio();
     read_control_switch();
-    
-    
-    //AEROXO
-    
-    motors.set_conv(get_conversion_function());
+
     // custom code/exceptions for flight modes
     // ---------------------------------------
     update_yaw_mode();
@@ -1154,10 +1179,22 @@ static void fifty_hz_logging_loop()
 // three_hz_loop - 3.3hz loop
 static void three_hz_loop()
 {
+    // check if we've lost contact with the ground station
+    failsafe_gcs_check();
 
+#if AC_FENCE == ENABLED
+    // check if we have breached a fence
+    fence_check();
+#endif // AC_FENCE_ENABLED
+
+#if SPRAYER == ENABLED
+    sprayer.update();
+#endif
 
     update_events();
 
+    if(g.radio_tuning > 0)
+        tuning();
 }
 
 // one_hz_loop - runs at 1Hz
@@ -1167,6 +1204,11 @@ static void one_hz_loop()
         Log_Write_Data(DATA_AP_STATE, ap.value);
     }
 
+    // pass latest alt hold kP value to navigation controller
+    wp_nav.set_althold_kP(g.pi_alt_hold.kP());
+
+    // update latest lean angle to navigation controller
+    wp_nav.set_lean_angle_max(g.angle_max);
 
     // log battery info to the dataflash
     if ((g.log_bitmask & MASK_LOG_CURRENT) && motors.armed())
@@ -1212,14 +1254,97 @@ static void one_hz_loop()
 #if OPTFLOW == ENABLED
 static void update_optical_flow(void)
 {
-    
+    static uint32_t last_of_update = 0;
+    static uint8_t of_log_counter = 0;
+
+    // if new data has arrived, process it
+    if( optflow.last_update != last_of_update ) {
+        last_of_update = optflow.last_update;
+        optflow.update_position(ahrs.roll, ahrs.pitch, sin_yaw, cos_yaw, current_loc.alt);      // updates internal lon and lat with estimation based on optical flow
+
+        // write to log at 5hz
+        of_log_counter++;
+        if( of_log_counter >= 4 ) {
+            of_log_counter = 0;
+            if (g.log_bitmask & MASK_LOG_OPTFLOW) {
+                Log_Write_Optflow();
+            }
+        }
+    }
 }
 #endif  // OPTFLOW == ENABLED
 
 // called at 50hz
 static void update_GPS(void)
 {
-  
+    static uint32_t last_gps_reading;           // time of last gps message
+    static uint8_t ground_start_count = 10;     // counter used to grab at least 10 reads before commiting the Home location
+
+    g_gps->update();
+
+    // logging and glitch protection run after every gps message
+    if (g_gps->last_message_time_ms() != last_gps_reading) {
+        last_gps_reading = g_gps->last_message_time_ms();
+
+        // log GPS message
+        if ((g.log_bitmask & MASK_LOG_GPS) && motors.armed()) {
+            DataFlash.Log_Write_GPS(g_gps, current_loc.alt);
+        }
+
+        // run glitch protection and update AP_Notify if home has been initialised
+        if (ap.home_is_set) {
+            gps_glitch.check_position();
+            if (AP_Notify::flags.gps_glitching != gps_glitch.glitching()) {
+                if (gps_glitch.glitching()) {
+                    Log_Write_Error(ERROR_SUBSYSTEM_GPS, ERROR_CODE_GPS_GLITCH);
+                }else{
+                    Log_Write_Error(ERROR_SUBSYSTEM_GPS, ERROR_CODE_ERROR_RESOLVED);
+                }
+                AP_Notify::flags.gps_glitching = gps_glitch.glitching();
+            }
+        }
+    }
+
+    // checks to initialise home and take location based pictures
+    if (g_gps->new_data && g_gps->status() >= GPS::GPS_OK_FIX_3D) {
+        // clear new data flag
+        g_gps->new_data = false;
+
+        // check if we can initialise home yet
+        if (!ap.home_is_set) {
+            // if we have a 3d lock and valid location
+            if(g_gps->status() >= GPS::GPS_OK_FIX_3D && g_gps->latitude != 0) {
+                if( ground_start_count > 0 ) {
+                    ground_start_count--;
+                }else{
+                    // after 10 successful reads store home location
+                    // ap.home_is_set will be true so this will only happen once
+                    ground_start_count = 0;
+                    init_home();
+
+                    // set system clock for log timestamps
+                    hal.util->set_system_clock(g_gps->time_epoch_usec());
+
+                    if (g.compass_enabled) {
+                        // Set compass declination automatically
+                        compass.set_initial_location(g_gps->latitude, g_gps->longitude);
+                    }
+                }
+            }else{
+                // start again if we lose 3d lock
+                ground_start_count = 10;
+            }
+        }
+
+#if CAMERA == ENABLED
+        if (camera.update_location(current_loc) == true) {
+            do_take_picture();
+        }
+#endif
+    }
+
+    // check for loss of gps
+    failsafe_gps_check();
 }
 
 // set_yaw_mode - update yaw mode and initialise any variables required
@@ -1233,10 +1358,63 @@ bool set_yaw_mode(uint8_t new_yaw_mode)
         return true;
     }
 
-   
+    switch( new_yaw_mode ) {
+        case YAW_HOLD:
+            yaw_initialised = true;
+            break;
+        case YAW_ACRO:
             yaw_initialised = true;
             acro_yaw_rate = 0;
-            
+            break;
+        case YAW_LOOK_AT_NEXT_WP:
+            if( ap.home_is_set ) {
+                yaw_initialised = true;
+            }
+            break;
+        case YAW_LOOK_AT_LOCATION:
+            if( ap.home_is_set ) {
+                // update bearing - assumes yaw_look_at_WP has been intialised before set_yaw_mode was called
+                yaw_look_at_WP_bearing = pv_get_bearing_cd(inertial_nav.get_position(), yaw_look_at_WP);
+                yaw_initialised = true;
+            }
+            break;
+        case YAW_CIRCLE:
+            if( ap.home_is_set ) {
+                // set yaw to point to center of circle
+                yaw_look_at_WP = circle_center;
+                // initialise bearing to current heading
+                yaw_look_at_WP_bearing = ahrs.yaw_sensor;
+                yaw_initialised = true;
+            }
+            break;
+        case YAW_LOOK_AT_HEADING:
+            yaw_initialised = true;
+            break;
+        case YAW_LOOK_AT_HOME:
+            if( ap.home_is_set ) {
+                yaw_initialised = true;
+            }
+            break;
+        case YAW_LOOK_AHEAD:
+            if( ap.home_is_set ) {
+                yaw_initialised = true;
+            }
+            break;
+        case YAW_DRIFT:
+            yaw_initialised = true;
+            break;
+        case YAW_RESETTOARMEDYAW:
+            nav_yaw = ahrs.yaw_sensor; // store current yaw so we can start rotating back to correct one
+            yaw_initialised = true;
+            break;
+    }
+
+    // if initialisation has been successful update the yaw mode
+    if( yaw_initialised ) {
+        yaw_mode = new_yaw_mode;
+    }
+
+    // return success or failure
     return yaw_initialised;
 }
 
@@ -1245,14 +1423,161 @@ bool set_yaw_mode(uint8_t new_yaw_mode)
 void update_yaw_mode(void)
 {
     int16_t pilot_yaw = g.rc_4.control_in;
-    get_yaw_rate_stabilized_bf(pilot_yaw);
+
+    // do not process pilot's yaw input during radio failsafe
+    if (failsafe.radio) {
+        pilot_yaw = 0;
+    }
+
+    switch(yaw_mode) {
+
+    case YAW_HOLD:
+        // if we are landed reset yaw target to current heading
+        if (ap.land_complete) {
+            nav_yaw = ahrs.yaw_sensor;
+        }
+        // heading hold at heading held in nav_yaw but allow input from pilot
+        get_yaw_rate_stabilized_ef(pilot_yaw);
+        break;
+
+    case YAW_ACRO:
+        // pilot controlled yaw using rate controller
+        get_yaw_rate_stabilized_bf(pilot_yaw);
+        break;
+
+    case YAW_LOOK_AT_NEXT_WP:
+        // if we are landed reset yaw target to current heading
+        if (ap.land_complete) {
+            nav_yaw = ahrs.yaw_sensor;
+        }else{
+            // point towards next waypoint (no pilot input accepted)
+            // we don't use wp_bearing because we don't want the copter to turn too much during flight
+            nav_yaw = get_yaw_slew(nav_yaw, original_wp_bearing, AUTO_YAW_SLEW_RATE);
+        }
+        get_stabilize_yaw(nav_yaw);
+
+        // if there is any pilot input, switch to YAW_HOLD mode for the next iteration
+        if (pilot_yaw != 0) {
+            set_yaw_mode(YAW_HOLD);
+        }
+        break;
+
+    case YAW_LOOK_AT_LOCATION:
+        // if we are landed reset yaw target to current heading
+        if (ap.land_complete) {
+            nav_yaw = ahrs.yaw_sensor;
+        }
+        // point towards a location held in yaw_look_at_WP
+        get_look_at_yaw();
+
+        // if there is any pilot input, switch to YAW_HOLD mode for the next iteration
+        if (pilot_yaw != 0) {
+            set_yaw_mode(YAW_HOLD);
+        }
+        break;
+
+    case YAW_CIRCLE:
+        // if we are landed reset yaw target to current heading
+        if (ap.land_complete) {
+            nav_yaw = ahrs.yaw_sensor;
+        }
+        // points toward the center of the circle or does a panorama
+        get_circle_yaw();
+
+        // if there is any pilot input, switch to YAW_HOLD mode for the next iteration
+        if (pilot_yaw != 0) {
+            set_yaw_mode(YAW_HOLD);
+        }
+        break;
+
+    case YAW_LOOK_AT_HOME:
+        // if we are landed reset yaw target to current heading
+        if (ap.land_complete) {
+            nav_yaw = ahrs.yaw_sensor;
+        }else{
+            // keep heading always pointing at home with no pilot input allowed
+            nav_yaw = get_yaw_slew(nav_yaw, home_bearing, AUTO_YAW_SLEW_RATE);
+        }
+        get_stabilize_yaw(nav_yaw);
+
+        // if there is any pilot input, switch to YAW_HOLD mode for the next iteration
+        if (pilot_yaw != 0) {
+            set_yaw_mode(YAW_HOLD);
+        }
+        break;
+
+    case YAW_LOOK_AT_HEADING:
+        // if we are landed reset yaw target to current heading
+        if (ap.land_complete) {
+            nav_yaw = ahrs.yaw_sensor;
+        }else{
+            // keep heading pointing in the direction held in yaw_look_at_heading with no pilot input allowed
+            nav_yaw = get_yaw_slew(nav_yaw, yaw_look_at_heading, yaw_look_at_heading_slew);
+        }
+        get_stabilize_yaw(nav_yaw);
+        break;
+
+	case YAW_LOOK_AHEAD:
+        // if we are landed reset yaw target to current heading
+        if (ap.land_complete) {
+            nav_yaw = ahrs.yaw_sensor;
+        }
+		// Commanded Yaw to automatically look ahead.
+        get_look_ahead_yaw(pilot_yaw);
+        break;
+
+    case YAW_DRIFT:
+        // if we have landed reset yaw target to current heading
+        if (ap.land_complete) {
+            nav_yaw = ahrs.yaw_sensor;
+        }
+        get_yaw_drift();
+        break;
+
+    case YAW_RESETTOARMEDYAW:
+        // if we are landed reset yaw target to current heading
+        if (ap.land_complete) {
+            nav_yaw = ahrs.yaw_sensor;
+        }else{
+            // changes yaw to be same as when quad was armed
+            nav_yaw = get_yaw_slew(nav_yaw, initial_armed_bearing, AUTO_YAW_SLEW_RATE);
+        }
+        get_stabilize_yaw(nav_yaw);
+
+        // if there is any pilot input, switch to YAW_HOLD mode for the next iteration
+        if (pilot_yaw != 0) {
+            set_yaw_mode(YAW_HOLD);
+        }
+
+        break;
+    }
 }
 
 // get yaw mode based on WP_YAW_BEHAVIOR parameter
 // set rtl parameter to true if this is during an RTL
 uint8_t get_wp_yaw_mode(bool rtl)
 {
+    switch (g.wp_yaw_behavior) {
+        case WP_YAW_BEHAVIOR_LOOK_AT_NEXT_WP:
+            return YAW_LOOK_AT_NEXT_WP;
+            break;
+
+        case WP_YAW_BEHAVIOR_LOOK_AT_NEXT_WP_EXCEPT_RTL:
+            if( rtl ) {
+                return YAW_HOLD;
+            }else{
+                return YAW_LOOK_AT_NEXT_WP;
+            }
+            break;
+
+        case WP_YAW_BEHAVIOR_LOOK_AHEAD:
+            return YAW_LOOK_AHEAD;
+            break;
+
+        default:
             return YAW_HOLD;
+            break;
+    }
 }
 
 // set_roll_pitch_mode - update roll/pitch mode and initialise any variables as required
@@ -1261,10 +1586,47 @@ bool set_roll_pitch_mode(uint8_t new_roll_pitch_mode)
     // boolean to ensure proper initialisation of throttle modes
     bool roll_pitch_initialised = false;
 
-   
+    // return immediately if no change
+    if( new_roll_pitch_mode == roll_pitch_mode ) {
+        return true;
+    }
+
+    switch( new_roll_pitch_mode ) {
+        case ROLL_PITCH_STABLE:
+            roll_pitch_initialised = true;
+            break;
+        case ROLL_PITCH_ACRO:
+            // reset acro level rates
             acro_roll_rate = 0;
             acro_pitch_rate = 0;
             roll_pitch_initialised = true;
+            break;
+        case ROLL_PITCH_AUTO:
+        case ROLL_PITCH_STABLE_OF:
+        case ROLL_PITCH_DRIFT:
+        case ROLL_PITCH_LOITER:
+        case ROLL_PITCH_SPORT:
+            roll_pitch_initialised = true;
+            break;
+
+#if AUTOTUNE == ENABLED
+        case ROLL_PITCH_AUTOTUNE:
+            // only enter autotune mode from stabilized roll-pitch mode when armed and flying
+            if (roll_pitch_mode == ROLL_PITCH_STABLE && motors.armed() && !ap.land_complete) {
+                // auto_tune_start returns true if it wants the roll-pitch mode changed to autotune
+                roll_pitch_initialised = auto_tune_start();
+            }
+            break;
+#endif
+    }
+
+    // if initialisation has been successful update the yaw mode
+    if( roll_pitch_initialised ) {
+        exit_roll_pitch_mode(roll_pitch_mode);
+        roll_pitch_mode = new_roll_pitch_mode;
+    }
+
+    // return success or failure
     return roll_pitch_initialised;
 }
 
@@ -1283,14 +1645,147 @@ void exit_roll_pitch_mode(uint8_t old_roll_pitch_mode)
 // 100hz update rate
 void update_roll_pitch_mode(void)
 {
+    switch(roll_pitch_mode) {
+    case ROLL_PITCH_ACRO:
+        // copy user input for reporting purposes
         control_roll            = g.rc_1.control_in;
         control_pitch           = g.rc_2.control_in;
 
-
+#if FRAME_CONFIG == HELI_FRAME
+        // ACRO does not get SIMPLE mode ability
+        if (motors.has_flybar()) {
+            g.rc_1.servo_out = g.rc_1.control_in;
+            g.rc_2.servo_out = g.rc_2.control_in;
+        }else{
+            acro_level_mix = constrain_float(1-max(max(abs(g.rc_1.control_in), abs(g.rc_2.control_in)), abs(g.rc_4.control_in))/4500.0, 0, 1)*cos_pitch_x;
+            get_roll_rate_stabilized_bf(g.rc_1.control_in);
+            get_pitch_rate_stabilized_bf(g.rc_2.control_in);
+            get_acro_level_rates();
+        }
+#else  // !HELI_FRAME
         acro_level_mix = constrain_float(1-max(max(abs(g.rc_1.control_in), abs(g.rc_2.control_in)), abs(g.rc_4.control_in))/4500.0, 0, 1)*cos_pitch_x;
         get_roll_rate_stabilized_bf(g.rc_1.control_in);
         get_pitch_rate_stabilized_bf(g.rc_2.control_in);
         get_acro_level_rates();
+#endif  // HELI_FRAME
+        break;
+
+    case ROLL_PITCH_STABLE:
+        // apply SIMPLE mode transform
+        update_simple_mode();
+
+        if(failsafe.radio) {
+            // don't allow copter to fly away during failsafe
+            get_pilot_desired_lean_angles(0.0f, 0.0f, control_roll, control_pitch);
+        } else {
+            // convert pilot input to lean angles
+            get_pilot_desired_lean_angles(g.rc_1.control_in, g.rc_2.control_in, control_roll, control_pitch);
+        }
+
+        // pass desired roll, pitch to stabilize attitude controllers
+        get_stabilize_roll(control_roll);
+        get_stabilize_pitch(control_pitch);
+
+        break;
+
+    case ROLL_PITCH_AUTO:
+        // copy latest output from nav controller to stabilize controller
+        nav_roll = wp_nav.get_desired_roll();
+        nav_pitch = wp_nav.get_desired_pitch();
+        get_stabilize_roll(nav_roll);
+        get_stabilize_pitch(nav_pitch);
+
+        // user input, although ignored is put into control_roll and pitch for reporting purposes
+        control_roll = g.rc_1.control_in;
+        control_pitch = g.rc_2.control_in;
+        break;
+
+    case ROLL_PITCH_STABLE_OF:
+        // apply SIMPLE mode transform
+        update_simple_mode();
+
+        if(failsafe.radio) {
+            // don't allow copter to fly away during failsafe
+            get_pilot_desired_lean_angles(0.0f, 0.0f, control_roll, control_pitch);
+        } else {
+            // convert pilot input to lean angles
+            get_pilot_desired_lean_angles(g.rc_1.control_in, g.rc_2.control_in, control_roll, control_pitch);
+        }
+
+        // mix in user control with optical flow
+        get_stabilize_roll(get_of_roll(control_roll));
+        get_stabilize_pitch(get_of_pitch(control_pitch));
+        break;
+
+    case ROLL_PITCH_DRIFT:
+        get_roll_pitch_drift();
+        break;
+
+    case ROLL_PITCH_LOITER:
+        // apply SIMPLE mode transform
+        update_simple_mode();
+
+        // copy user input for reporting purposes
+        control_roll            = g.rc_1.control_in;
+        control_pitch           = g.rc_2.control_in;
+
+        if(failsafe.radio) {
+            // don't allow loiter target to move during failsafe
+            wp_nav.move_loiter_target(0.0f, 0.0f, 0.01f);
+        } else {
+            // update loiter target from user controls
+            wp_nav.move_loiter_target(g.rc_1.control_in, g.rc_2.control_in, 0.01f);
+        }
+
+        // copy latest output from nav controller to stabilize controller
+        nav_roll = wp_nav.get_desired_roll();
+        nav_pitch = wp_nav.get_desired_pitch();
+
+        get_stabilize_roll(nav_roll);
+        get_stabilize_pitch(nav_pitch);
+        break;
+
+    case ROLL_PITCH_SPORT:
+        // apply SIMPLE mode transform
+        update_simple_mode();
+
+        // copy user input for reporting purposes
+        control_roll = g.rc_1.control_in;
+        control_pitch = g.rc_2.control_in;
+        get_roll_rate_stabilized_ef(g.rc_1.control_in);
+        get_pitch_rate_stabilized_ef(g.rc_2.control_in);
+        break;
+
+#if AUTOTUNE == ENABLED
+    case ROLL_PITCH_AUTOTUNE:
+        // apply SIMPLE mode transform
+        if(ap.simple_mode && ap.new_radio_frame) {
+            update_simple_mode();
+        }
+
+        // convert pilot input to lean angles
+        get_pilot_desired_lean_angles(g.rc_1.control_in, g.rc_2.control_in, control_roll, control_pitch);
+
+        // pass desired roll, pitch to stabilize attitude controllers
+        get_stabilize_roll(control_roll);
+        get_stabilize_pitch(control_pitch);
+
+        // copy user input for reporting purposes
+        get_autotune_roll_pitch_controller(g.rc_1.control_in, g.rc_2.control_in, g.rc_4.control_in);
+        break;
+#endif
+    }
+
+	#if FRAME_CONFIG != HELI_FRAME
+    if(g.rc_3.control_in == 0 && control_mode <= ACRO) {
+        reset_rate_I();
+    }
+	#endif //HELI_FRAME
+
+    if(ap.new_radio_frame) {
+        // clear new radio frame info
+        ap.new_radio_frame = false;
+    }
 }
 
 static void
@@ -1619,7 +2114,7 @@ static void update_trig(void){
     sin_roll        = temp.c.y / cos_pitch_x;
 
     // update wp_nav controller with trig values
-    //wp_nav.set_cos_sin_yaw(cos_yaw, sin_yaw, cos_pitch_x);
+    wp_nav.set_cos_sin_yaw(cos_yaw, sin_yaw, cos_pitch_x);
 
     //flat:
     // 0 ° = cos_yaw:  1.00, sin_yaw:  0.00,
@@ -1631,11 +2126,191 @@ static void update_trig(void){
 // read baro and sonar altitude at 20hz
 static void update_altitude()
 {
+#if HIL_MODE == HIL_MODE_ATTITUDE
+    // we are in the SIM, fake out the baro and Sonar
+    baro_alt                = g_gps->altitude_cm;
 
+    if(g.sonar_enabled) {
+        sonar_alt           = baro_alt;
+    }
+#else
+    // read in baro altitude
+    baro_alt            = read_barometer();
+
+    // read in sonar altitude
+    sonar_alt           = read_sonar();
+#endif  // HIL_MODE == HIL_MODE_ATTITUDE
+
+    // write altitude info to dataflash logs
+    if ((g.log_bitmask & MASK_LOG_CTUN) && motors.armed()) {
+        Log_Write_Control_Tuning();
+    }
 }
 
 static void tuning(){
 
+    // exit immediately when radio failsafe is invoked so tuning values are not set to zero
+    if (failsafe.radio || failsafe.radio_counter != 0) {
+        return;
+    }
+
+    tuning_value = (float)g.rc_6.control_in / 1000.0f;
+    g.rc_6.set_range(g.radio_tuning_low,g.radio_tuning_high);                   // 0 to 1
+
+    switch(g.radio_tuning) {
+
+    // Roll, Pitch tuning
+    case CH6_STABILIZE_ROLL_PITCH_KP:
+        g.pi_stabilize_roll.kP(tuning_value);
+        g.pi_stabilize_pitch.kP(tuning_value);
+        break;
+
+    case CH6_RATE_ROLL_PITCH_KP:
+        g.pid_rate_roll.kP(tuning_value);
+        g.pid_rate_pitch.kP(tuning_value);
+        break;
+
+    case CH6_RATE_ROLL_PITCH_KI:
+        g.pid_rate_roll.kI(tuning_value);
+        g.pid_rate_pitch.kI(tuning_value);
+        break;
+
+    case CH6_RATE_ROLL_PITCH_KD:
+        g.pid_rate_roll.kD(tuning_value);
+        g.pid_rate_pitch.kD(tuning_value);
+        break;
+
+    // Yaw tuning
+    case CH6_STABILIZE_YAW_KP:
+        g.pi_stabilize_yaw.kP(tuning_value);
+        break;
+
+    case CH6_YAW_RATE_KP:
+        g.pid_rate_yaw.kP(tuning_value);
+        break;
+
+    case CH6_YAW_RATE_KD:
+        g.pid_rate_yaw.kD(tuning_value);
+        break;
+
+    // Altitude and throttle tuning
+    case CH6_ALTITUDE_HOLD_KP:
+        g.pi_alt_hold.kP(tuning_value);
+        break;
+
+    case CH6_THROTTLE_RATE_KP:
+        g.pid_throttle_rate.kP(tuning_value);
+        break;
+
+    case CH6_THROTTLE_RATE_KD:
+        g.pid_throttle_rate.kD(tuning_value);
+        break;
+
+    case CH6_THROTTLE_ACCEL_KP:
+        g.pid_throttle_accel.kP(tuning_value);
+        break;
+
+    case CH6_THROTTLE_ACCEL_KI:
+        g.pid_throttle_accel.kI(tuning_value);
+        break;
+
+    case CH6_THROTTLE_ACCEL_KD:
+        g.pid_throttle_accel.kD(tuning_value);
+        break;
+
+    // Loiter and navigation tuning
+    case CH6_LOITER_POSITION_KP:
+        g.pi_loiter_lat.kP(tuning_value);
+        g.pi_loiter_lon.kP(tuning_value);
+        break;
+
+    case CH6_LOITER_RATE_KP:
+        g.pid_loiter_rate_lon.kP(tuning_value);
+        g.pid_loiter_rate_lat.kP(tuning_value);
+        break;
+
+    case CH6_LOITER_RATE_KI:
+        g.pid_loiter_rate_lon.kI(tuning_value);
+        g.pid_loiter_rate_lat.kI(tuning_value);
+        break;
+
+    case CH6_LOITER_RATE_KD:
+        g.pid_loiter_rate_lon.kD(tuning_value);
+        g.pid_loiter_rate_lat.kD(tuning_value);
+        break;
+
+    case CH6_WP_SPEED:
+        // set waypoint navigation horizontal speed to 0 ~ 1000 cm/s
+        wp_nav.set_horizontal_velocity(g.rc_6.control_in);
+        break;
+
+    // Acro roll pitch gain
+    case CH6_ACRO_RP_KP:
+        g.acro_rp_p = tuning_value;
+        break;
+
+    // Acro yaw gain
+    case CH6_ACRO_YAW_KP:
+        g.acro_yaw_p = tuning_value;
+        break;
+
+    case CH6_RELAY:
+        if (g.rc_6.control_in > 525) relay.on();
+        if (g.rc_6.control_in < 475) relay.off();
+        break;
+
+#if FRAME_CONFIG == HELI_FRAME
+    case CH6_HELI_EXTERNAL_GYRO:
+        motors.ext_gyro_gain(g.rc_6.control_in);
+        break;
+#endif
+
+    case CH6_OPTFLOW_KP:
+        g.pid_optflow_roll.kP(tuning_value);
+        g.pid_optflow_pitch.kP(tuning_value);
+        break;
+
+    case CH6_OPTFLOW_KI:
+        g.pid_optflow_roll.kI(tuning_value);
+        g.pid_optflow_pitch.kI(tuning_value);
+        break;
+
+    case CH6_OPTFLOW_KD:
+        g.pid_optflow_roll.kD(tuning_value);
+        g.pid_optflow_pitch.kD(tuning_value);
+        break;
+
+#if HIL_MODE != HIL_MODE_ATTITUDE                                       // do not allow modifying _kp or _kp_yaw gains in HIL mode
+    case CH6_AHRS_YAW_KP:
+        ahrs._kp_yaw.set(tuning_value);
+        break;
+
+    case CH6_AHRS_KP:
+        ahrs._kp.set(tuning_value);
+        break;
+#endif
+
+    case CH6_INAV_TC:
+        // To-Do: allowing tuning TC for xy and z separately
+        inertial_nav.set_time_constant_xy(tuning_value);
+        inertial_nav.set_time_constant_z(tuning_value);
+        break;
+
+    case CH6_DECLINATION:
+        // set declination to +-20degrees
+        compass.set_declination(ToRad((2.0f * g.rc_6.control_in - g.radio_tuning_high)/100.0f), false);     // 2nd parameter is false because we do not want to save to eeprom because this would have a performance impact
+        break;
+
+    case CH6_CIRCLE_RATE:
+        // set circle rate
+        g.circle_rate.set(g.rc_6.control_in/25-20);     // allow approximately 45 degree turn rate in either direction
+        break;
+
+    case CH6_SONAR_GAIN:
+        // set sonar gain
+        g.sonar_gain.set(tuning_value);
+        break;
+    }
 }
 
 AP_HAL_MAIN();

@@ -799,9 +799,9 @@ AP_AHRS_DCM::euler_angles(void)
 {
     _dcm_matrix.to_euler(&roll, &pitch, &yaw);
 
-    roll_sensor     = 0;
-    pitch_sensor    = 0;
-    yaw_sensor      = 0;
+    roll_sensor     = degrees(roll)  * 100;
+    pitch_sensor    = degrees(pitch) * 100;
+    yaw_sensor      = degrees(yaw)   * 100;
 
     if (yaw_sensor < 0)
         yaw_sensor += 36000;

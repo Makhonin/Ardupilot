@@ -33,10 +33,15 @@ static void
 get_stabilize_roll(int32_t target_angle)
 {
     // angle error
-    //target_angle = wrap_180_cd(target_angle - ahrs.roll_sensor);
+    target_angle = wrap_180_cd(target_angle - ahrs.roll_sensor);
 
     // convert to desired rate
-    int32_t target_rate = 0;
+    int32_t target_rate = g.pi_stabilize_roll.kP() * target_angle;
+
+    // constrain the target rate
+    if (!ap.disable_stab_rate_limit) {
+        target_rate = constrain_int32(target_rate, -g.angle_rate_max, g.angle_rate_max);
+    }
 
     // set targets for rate controller
     set_roll_rate_target(target_rate, EARTH_FRAME);
@@ -45,9 +50,17 @@ get_stabilize_roll(int32_t target_angle)
 static void
 get_stabilize_pitch(int32_t target_angle)
 {
-    
-    int32_t target_rate = 0;
-   
+    // angle error
+    target_angle            = wrap_180_cd(target_angle - ahrs.pitch_sensor);
+
+    // convert to desired rate
+    int32_t target_rate = g.pi_stabilize_pitch.kP() * target_angle;
+
+    // constrain the target rate
+    if (!ap.disable_stab_rate_limit) {
+        target_rate = constrain_int32(target_rate, -g.angle_rate_max, g.angle_rate_max);
+    }
+
     // set targets for rate controller
     set_pitch_rate_target(target_rate, EARTH_FRAME);
 }
@@ -55,31 +68,45 @@ get_stabilize_pitch(int32_t target_angle)
 static void
 get_stabilize_yaw(int32_t target_angle)
 {
-    
-    int32_t target_rate = 0;
-    
+    int32_t target_rate;
+    int32_t angle_error;
+    int32_t output = 0;
+
+    // angle error
+    angle_error = wrap_180_cd(target_angle - ahrs.yaw_sensor);
+
+    // limit the error we're feeding to the PID
+    angle_error = constrain_int32(angle_error, -4500, 4500);
+
+    // convert angle error to desired Rate:
+    target_rate = g.pi_stabilize_yaw.kP() * angle_error;
+
+    // do not use rate controllers for helicotpers with external gyros
+#if FRAME_CONFIG == HELI_FRAME
+    if(motors.tail_type() == AP_MOTORS_HELI_TAILTYPE_SERVO_EXTGYRO) {
+        g.rc_4.servo_out = constrain_int32(target_rate, -4500, 4500);
+    }
+#endif
+
+#if LOGGING_ENABLED == ENABLED
+    // log output if PID logging is on and we are tuning the yaw
+    if( g.log_bitmask & MASK_LOG_PID && g.radio_tuning == CH6_STABILIZE_YAW_KP ) {
+        pid_log_counter++;
+        if( pid_log_counter >= 10 ) {               // (update rate / desired output rate) = (100hz / 10hz) = 10
+            pid_log_counter = 0;
+            Log_Write_PID(CH6_STABILIZE_YAW_KP, angle_error, target_rate, 0, 0, output, tuning_value);
+        }
+    }
+#endif
+
     // set targets for rate controller
     set_yaw_rate_target(target_rate, EARTH_FRAME);
-}
-
-//AEROXO TILTROTOR CODE
-static int16_t
-get_conversion_function()
-{
-  int16_t conv;
-  
-  conv = 1000-(1900-g.p_conversion)/8*10;  //Min 1100 Max 1900 -> (max-x)/800 Default 1900
-  return conv;
 }
 
 // get_acro_level_rates - calculate earth frame rate corrections to pull the copter back to level while in ACRO mode
 static void
 get_acro_level_rates()
 {
-  
-  
-   
-  
     // zero earth frame leveling if trainer is disabled
     if (g.acro_trainer == ACRO_TRAINER_DISABLED) {
         set_roll_rate_target(0, BODY_EARTH_FRAME);
@@ -91,18 +118,12 @@ get_acro_level_rates()
     // Calculate trainer mode earth frame rate command for roll
     int32_t roll_angle = wrap_180_cd(ahrs.roll_sensor);
     int32_t target_rate = 0;
-    int32_t target_rate_tilt = 0;
-    
+
     if (g.acro_trainer == ACRO_TRAINER_LIMITED) {
-        if (roll_angle > g.angle_max)
-        {
+        if (roll_angle > g.angle_max){
             target_rate =  g.pi_stabilize_roll.get_p(g.angle_max-roll_angle);
-            
-        }
-        else if (roll_angle < -g.angle_max) 
-        {
+        }else if (roll_angle < -g.angle_max) {
             target_rate =  g.pi_stabilize_roll.get_p(-g.angle_max-roll_angle);
-            
         }
     }
     roll_angle   = constrain_int32(roll_angle, -ACRO_LEVEL_MAX_ANGLE, ACRO_LEVEL_MAX_ANGLE);
@@ -439,11 +460,22 @@ update_rate_contoller_targets()
 void
 run_rate_controllers()
 {
-
+#if FRAME_CONFIG == HELI_FRAME
+    // convert desired roll and pitch rate to roll and pitch swash angles
+    heli_integrated_swash_controller(roll_rate_target_bf, pitch_rate_target_bf);
+    // helicopters only use rate controllers for yaw and only when not using an external gyro
+    if(motors.tail_type() != AP_MOTORS_HELI_TAILTYPE_SERVO_EXTGYRO) {
+        g.rc_4.servo_out = get_heli_rate_yaw(yaw_rate_target_bf);
+    }else{
+        // do not use rate controllers for helicotpers with external gyros
+        g.rc_4.servo_out = constrain_int32(yaw_rate_target_bf, -4500, 4500);
+    }
+#else
     // call rate controllers
     g.rc_1.servo_out = get_rate_roll(roll_rate_target_bf);
     g.rc_2.servo_out = get_rate_pitch(pitch_rate_target_bf);
     g.rc_4.servo_out = get_rate_yaw(yaw_rate_target_bf);
+#endif
 
     // run throttle controller if accel based throttle controller is enabled and active (active means it has been given a target)
     if( throttle_accel_controller_active ) {
@@ -451,21 +483,14 @@ run_rate_controllers()
     }
 }
 
-/* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 1 */
-
 #if FRAME_CONFIG != HELI_FRAME
 static int16_t
 get_rate_roll(int32_t target_rate)
 {
     int32_t p,i,d;                  // used to capture pid values for logging
-    int32_t p_tilt,i_tilt,d_tilt;                  // used to capture pid values for logging
     int32_t current_rate;           // this iteration's rate
-    int32_t rate_error,common_rate_error;             // simply target_rate - current_rate
+    int32_t rate_error;             // simply target_rate - current_rate
     int32_t output;                 // output from pid controller
-    
-    //AEROXO TILTROTOR CODE
-   int16_t conv = get_conversion_function(); //0 to 1000
-
 
     // get current rate
     current_rate    = (omega.x * DEGX100);
@@ -473,22 +498,21 @@ get_rate_roll(int32_t target_rate)
     // call pid controller
     rate_error  = target_rate - current_rate;
     p           = g.pid_rate_roll.get_p(rate_error);
-    p_tilt           = g.pid_rate_roll_tilt.get_p(rate_error);
-    
-    p = p*conv/1000+p_tilt*(1000-conv)/1000;
+
     // get i term
     i = g.pid_rate_roll.get_integrator();
 
     // update i term as long as we haven't breached the limits or the I term will certainly reduce
-    if (!motors.limit.roll_pitch || ((i>0&&rate_error<0)||(i<0&&rate_error>0))) 
-    {
-        common_rate_error =  rate_error*g.pid_rate_roll.kI()*conv/1000+rate_error*g.pid_rate_roll_tilt.kI()*(1000-conv)/1000;
-        i = g.pid_rate_roll.get_it2(common_rate_error, G_Dt);
+    if (!motors.limit.roll_pitch || ((i>0&&rate_error<0)||(i<0&&rate_error>0))) {
+        i = g.pid_rate_roll.get_i(rate_error, G_Dt);
     }
 
-    output = p + i;
+    d = g.pid_rate_roll.get_d(rate_error, G_Dt);
+    output = p + i + d;
+
+    // constrain output
     output = constrain_int32(output, -5000, 5000);
-    
+
 #if LOGGING_ENABLED == ENABLED
     // log output if PID logging is on and we are tuning the rate P, I or D gains
     if( g.log_bitmask & MASK_LOG_PID && (g.radio_tuning == CH6_RATE_ROLL_PITCH_KP || g.radio_tuning == CH6_RATE_ROLL_PITCH_KI || g.radio_tuning == CH6_RATE_ROLL_PITCH_KD) ) {
@@ -504,45 +528,35 @@ get_rate_roll(int32_t target_rate)
     return output;
 }
 
-/* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 2 */
-
 static int16_t
 get_rate_pitch(int32_t target_rate)
 {
-  
-   
-   
-    int32_t p,i,d;      
-    int32_t p_tilt,i_tilt,d_tilt;                  // used to capture pid values for logging    // used to capture pid values for logging
+    int32_t p,i,d;                                                                      // used to capture pid values for logging
     int32_t current_rate;                                                       // this iteration's rate
-    int32_t rate_error,common_rate_error;                                                                 // simply target_rate - current_rate
+    int32_t rate_error;                                                                 // simply target_rate - current_rate
     int32_t output;                                                                     // output from pid controller
-    
-    //AEROXO TILTROTOR CODE
-    int16_t conv = get_conversion_function(); //0 to 1000
+
     // get current rate
     current_rate    = (omega.y * DEGX100);
 
     // call pid controller
     rate_error      = target_rate - current_rate;
     p               = g.pid_rate_pitch.get_p(rate_error);
-    p_tilt               = g.pid_rate_pitch_tilt.get_p(rate_error);
-    
-    p = p*conv/1000+p_tilt*(1000-conv)/1000;
-    
-    
+
     // get i term
     i = g.pid_rate_pitch.get_integrator();
-    
+
     // update i term as long as we haven't breached the limits or the I term will certainly reduce
     if (!motors.limit.roll_pitch || ((i>0&&rate_error<0)||(i<0&&rate_error>0))) {
-        common_rate_error =  rate_error*g.pid_rate_pitch.kI()*conv/1000+rate_error*g.pid_rate_pitch_tilt.kI()*(1000-conv)/1000;
-        i = g.pid_rate_pitch.get_i(common_rate_error, G_Dt);
+        i = g.pid_rate_pitch.get_i(rate_error, G_Dt);
     }
-    
-    output = p + i;
+
+    d = g.pid_rate_pitch.get_d(rate_error, G_Dt);
+    output = p + i + d;
+
+    // constrain output
     output = constrain_int32(output, -5000, 5000);
-    
+
 #if LOGGING_ENABLED == ENABLED
     // log output if PID logging is on and we are tuning the rate P, I or D gains
     if( g.log_bitmask & MASK_LOG_PID && (g.radio_tuning == CH6_RATE_ROLL_PITCH_KP || g.radio_tuning == CH6_RATE_ROLL_PITCH_KI || g.radio_tuning == CH6_RATE_ROLL_PITCH_KD) ) {
@@ -556,38 +570,33 @@ get_rate_pitch(int32_t target_rate)
     return output;
 }
 
-/* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! 3 */
-
 static int16_t
 get_rate_yaw(int32_t target_rate)
 {
     int32_t p,i,d;                                                                      // used to capture pid values for logging
-    int32_t p_tilt,i_tilt,d_tilt;                  // used to capture pid values for logging
-    int32_t rate_error,common_rate_error;
+    int32_t rate_error;
     int32_t output;
-    
-    //AEROXO TILTROTOR CODE
-    int16_t conv = get_conversion_function(); //0 to 1000
+
     // rate control
     rate_error              = target_rate - (omega.z * DEGX100);
 
     // separately calculate p, i, d values for logging
     p = g.pid_rate_yaw.get_p(rate_error);
-    p_tilt = g.pid_rate_yaw_tilt.get_p(rate_error);
-    
-    p = p*conv/1000+p_tilt*(1000-conv)/1000;
+
     // get i term
     i = g.pid_rate_yaw.get_integrator();
-    
+
     // update i term as long as we haven't breached the limits or the I term will certainly reduce
     if (!motors.limit.yaw || ((i>0&&rate_error<0)||(i<0&&rate_error>0))) {
-        common_rate_error =  rate_error*g.pid_rate_yaw.kI()*conv/1000+rate_error*g.pid_rate_yaw_tilt.kI()*(1000-conv)/1000;
-        i = g.pid_rate_yaw.get_i(common_rate_error, G_Dt);
+        i = g.pid_rate_yaw.get_i(rate_error, G_Dt);
     }
 
-    output = p + i;
+    // get d value
+    d = g.pid_rate_yaw.get_d(rate_error, G_Dt);
+
+    output  = p+i+d;
     output = constrain_int32(output, -4500, 4500);
-    
+
 #if LOGGING_ENABLED == ENABLED
     // log output if PID loggins is on and we are tuning the yaw
     if( g.log_bitmask & MASK_LOG_PID && g.radio_tuning == CH6_YAW_RATE_KP ) {
@@ -608,13 +617,106 @@ get_rate_yaw(int32_t target_rate)
 static int32_t
 get_of_roll(int32_t input_roll)
 {
-  return input_roll;
+#if OPTFLOW == ENABLED
+    static float tot_x_cm = 0;      // total distance from target
+    static uint32_t last_of_roll_update = 0;
+    int32_t new_roll = 0;
+    int32_t p,i,d;
+
+    // check if new optflow data available
+    if( optflow.last_update != last_of_roll_update) {
+        last_of_roll_update = optflow.last_update;
+
+        // add new distance moved
+        tot_x_cm += optflow.x_cm;
+
+        // only stop roll if caller isn't modifying roll
+        if( input_roll == 0 && current_loc.alt < 1500) {
+            p = g.pid_optflow_roll.get_p(-tot_x_cm);
+            i = g.pid_optflow_roll.get_i(-tot_x_cm,1.0f);              // we could use the last update time to calculate the time change
+            d = g.pid_optflow_roll.get_d(-tot_x_cm,1.0f);
+            new_roll = p+i+d;
+        }else{
+            g.pid_optflow_roll.reset_I();
+            tot_x_cm = 0;
+            p = 0;              // for logging
+            i = 0;
+            d = 0;
+        }
+        // limit amount of change and maximum angle
+        of_roll = constrain_int32(new_roll, (of_roll-20), (of_roll+20));
+
+ #if LOGGING_ENABLED == ENABLED
+        // log output if PID logging is on and we are tuning the rate P, I or D gains
+        if( g.log_bitmask & MASK_LOG_PID && (g.radio_tuning == CH6_OPTFLOW_KP || g.radio_tuning == CH6_OPTFLOW_KI || g.radio_tuning == CH6_OPTFLOW_KD) ) {
+            pid_log_counter++;              // Note: get_of_pitch pid logging relies on this function updating pid_log_counter so if you change the line above you must change the equivalent line in get_of_pitch
+            if( pid_log_counter >= 5 ) {    // (update rate / desired output rate) = (100hz / 10hz) = 10
+                pid_log_counter = 0;
+                Log_Write_PID(CH6_OPTFLOW_KP, tot_x_cm, p, i, d, of_roll, tuning_value);
+            }
+        }
+ #endif // LOGGING_ENABLED == ENABLED
+    }
+
+    // limit max angle
+    of_roll = constrain_int32(of_roll, -1000, 1000);
+
+    return input_roll+of_roll;
+#else
+    return input_roll;
+#endif
 }
 
 static int32_t
 get_of_pitch(int32_t input_pitch)
 {
+#if OPTFLOW == ENABLED
+    static float tot_y_cm = 0;  // total distance from target
+    static uint32_t last_of_pitch_update = 0;
+    int32_t new_pitch = 0;
+    int32_t p,i,d;
+
+    // check if new optflow data available
+    if( optflow.last_update != last_of_pitch_update ) {
+        last_of_pitch_update = optflow.last_update;
+
+        // add new distance moved
+        tot_y_cm += optflow.y_cm;
+
+        // only stop roll if caller isn't modifying pitch
+        if( input_pitch == 0 && current_loc.alt < 1500 ) {
+            p = g.pid_optflow_pitch.get_p(tot_y_cm);
+            i = g.pid_optflow_pitch.get_i(tot_y_cm, 1.0f);              // we could use the last update time to calculate the time change
+            d = g.pid_optflow_pitch.get_d(tot_y_cm, 1.0f);
+            new_pitch = p + i + d;
+        }else{
+            tot_y_cm = 0;
+            g.pid_optflow_pitch.reset_I();
+            p = 0;              // for logging
+            i = 0;
+            d = 0;
+        }
+
+        // limit amount of change
+        of_pitch = constrain_int32(new_pitch, (of_pitch-20), (of_pitch+20));
+
+ #if LOGGING_ENABLED == ENABLED
+        // log output if PID logging is on and we are tuning the rate P, I or D gains
+        if( g.log_bitmask & MASK_LOG_PID && (g.radio_tuning == CH6_OPTFLOW_KP || g.radio_tuning == CH6_OPTFLOW_KI || g.radio_tuning == CH6_OPTFLOW_KD) ) {
+            if( pid_log_counter == 0 ) {        // relies on get_of_roll having updated the pid_log_counter
+                Log_Write_PID(CH6_OPTFLOW_KP+100, tot_y_cm, p, i, d, of_pitch, tuning_value);
+            }
+        }
+ #endif // LOGGING_ENABLED == ENABLED
+    }
+
+    // limit max angle
+    of_pitch = constrain_int32(of_pitch, -1000, 1000);
+
+    return input_pitch+of_pitch;
+#else
     return input_pitch;
+#endif
 }
 
 /*************************************************************
@@ -1167,9 +1269,6 @@ static void reset_rate_I()
     g.pid_rate_roll.reset_I();
     g.pid_rate_pitch.reset_I();
     g.pid_rate_yaw.reset_I();
-    g.pid_rate_roll_tilt.reset_I();
-    g.pid_rate_pitch_tilt.reset_I();
-    g.pid_rate_yaw_tilt.reset_I();
 }
 
 static void reset_optflow_I(void)

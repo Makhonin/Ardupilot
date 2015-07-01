@@ -6,7 +6,11 @@
  #if CONFIG_SONAR == ENABLED
 static void init_sonar(void)
 {
-
+  #if CONFIG_SONAR_SOURCE == SONAR_SOURCE_ADC
+    sonar->calculate_scaler(g.sonar_type, 3.3f);
+  #else
+    sonar->calculate_scaler(g.sonar_type, 5.0f);
+  #endif
 }
  #endif
 
@@ -27,8 +31,34 @@ static int32_t read_barometer(void)
 // return sonar altitude in centimeters
 static int16_t read_sonar(void)
 {
+#if CONFIG_SONAR == ENABLED
+    // exit immediately if sonar is disabled
+    if( !g.sonar_enabled ) {
+        sonar_alt_health = 0;
+        return 0;
+    }
 
+    int16_t temp_alt = sonar->read();
+
+    if (temp_alt >= sonar->min_distance && temp_alt <= sonar->max_distance * SONAR_RELIABLE_DISTANCE_PCT) {
+        if ( sonar_alt_health < SONAR_ALT_HEALTH_MAX ) {
+            sonar_alt_health++;
+        }
+    }else{
+        sonar_alt_health = 0;
+    }
+
+ #if SONAR_TILT_CORRECTION == 1
+    // correct alt for angle of the sonar
+    float temp = cos_pitch_x * cos_roll_x;
+    temp = max(temp, 0.707f);
+    temp_alt = (float)temp_alt * temp;
+ #endif
+
+    return temp_alt;
+#else
     return 0;
+#endif
 }
 
 
@@ -47,7 +77,24 @@ static void init_compass()
 
 static void init_optflow()
 {
+#if OPTFLOW == ENABLED
+    if( optflow.init() == false ) {
+        g.optflow_enabled = false;
+        cliSerial->print_P(PSTR("\nFailed to Init OptFlow "));
+        Log_Write_Error(ERROR_SUBSYSTEM_OPTFLOW,ERROR_CODE_FAILED_TO_INITIALISE);
+    }else{
+        // suspend timer while we set-up SPI communication
+        hal.scheduler->suspend_timer_procs();
 
+        optflow.set_orientation(OPTFLOW_ORIENTATION);   // set optical flow sensor's orientation on aircraft
+        optflow.set_frame_rate(2000);                   // set minimum update rate (which should lead to maximum low light performance
+        optflow.set_resolution(OPTFLOW_RESOLUTION);     // set optical flow sensor's resolution
+        optflow.set_field_of_view(OPTFLOW_FOV);         // set optical flow sensor's field of view
+
+        // resume timer
+        hal.scheduler->resume_timer_procs();
+    }
+#endif      // OPTFLOW == ENABLED
 }
 
 // read_battery - check battery voltage and current and invoke failsafe if necessary
