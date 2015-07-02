@@ -53,6 +53,20 @@ int32_t AC_PID::get_i(int32_t error, float dt)
     return 0;
 }
 
+int32_t AC_PID::get_it2(int32_t error, float dt)
+{
+    if((_ki != 0) && (dt != 0)) {
+        _integrator += ((float)error) * dt;
+        if (_integrator < -_imax) {
+            _integrator = -_imax;
+        } else if (_integrator > _imax) {
+            _integrator = _imax;
+        }
+        return _integrator;
+    }
+    return 0;
+}
+
 // This is an integrator which tends to decay to zero naturally
 // if the error is zero.
 
@@ -61,6 +75,22 @@ int32_t AC_PID::get_leaky_i(int32_t error, float dt, float leak_rate)
 	if((_ki != 0) && (dt != 0)){
 		_integrator -= (float)_integrator * leak_rate;
 		_integrator += ((float)error * _ki) * dt;
+		if (_integrator < -_imax) {
+			_integrator = -_imax;
+		} else if (_integrator > _imax) {
+			_integrator = _imax;
+		}
+
+		return _integrator;
+	}
+	return 0;
+}
+
+int32_t AC_PID::get_leaky_it2(int32_t error, float dt, float leak_rate)
+{
+	if((_ki != 0) && (dt != 0)){
+		_integrator -= (float)_integrator * leak_rate;
+		_integrator += ((float)error*_ki) * dt;
 		if (_integrator < -_imax) {
 			_integrator = -_imax;
 		} else if (_integrator > _imax) {

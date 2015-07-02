@@ -417,7 +417,7 @@ static union {
 ////////////////////////////////////////////////////////////////////////////////
 // This is the state of the flight control system
 // There are multiple states defined such as STABILIZE, ACRO,
-static int8_t control_mode = STABILIZE;
+static int8_t control_mode = STABILIZE; //MAI!
 // Used to maintain the state of the previous control switch position
 // This is set to -1 when we need to re-read the switch
 static uint8_t oldSwitchPosition;
@@ -667,7 +667,7 @@ static int32_t baro_alt;
 // Each Flight mode is a unique combination of these modes
 //
 // The current desired control scheme for Yaw
-static uint8_t yaw_mode = STABILIZE_YAW;
+static uint8_t yaw_mode = STABILIZE_YAW; // FOR MAI! AEROXO CODE.
 // The current desired control scheme for roll and pitch / navigation
 static uint8_t roll_pitch_mode = STABILIZE_RP;
 // The current desired control scheme for altitude hold
@@ -1092,6 +1092,10 @@ static void fast_loop()
     read_radio();
     read_control_switch();
     
+    
+    //AEROXO
+    
+    motors.set_conv(get_conversion_function());
     // custom code/exceptions for flight modes
     // ---------------------------------------
     update_yaw_mode();

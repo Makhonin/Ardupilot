@@ -65,6 +65,16 @@ get_stabilize_pitch(int32_t target_angle)
     set_pitch_rate_target(target_rate, EARTH_FRAME);
 }
 
+//AEROXO TILTROTOR CODE
+static int16_t
+get_conversion_function()
+{
+  int16_t conv;
+  
+  conv = 1000-(1900-g.p_conversion)/8*10;  //Min 1100 Max 1900 -> (max-x)/800 Default 1900
+  return conv;
+}
+
 static void
 get_stabilize_yaw(int32_t target_angle)
 {
