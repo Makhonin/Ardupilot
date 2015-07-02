@@ -1,6 +1,6 @@
 /// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 
-#define THISFIRMWARE "ArduCopter V3.1.5"
+#define THISFIRMWARE "ArduCopter V3.1"
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -346,8 +346,8 @@ static AP_OpticalFlow optflow;
 ////////////////////////////////////////////////////////////////////////////////
 // GCS selection
 ////////////////////////////////////////////////////////////////////////////////
-static const uint8_t num_gcs = MAVLINK_COMM_NUM_BUFFERS;
-static GCS_MAVLINK gcs[MAVLINK_COMM_NUM_BUFFERS];
+static GCS_MAVLINK gcs0;
+static GCS_MAVLINK gcs3;
 
 ////////////////////////////////////////////////////////////////////////////////
 // SONAR selection
@@ -417,7 +417,7 @@ static union {
 ////////////////////////////////////////////////////////////////////////////////
 // This is the state of the flight control system
 // There are multiple states defined such as STABILIZE, ACRO,
-static int8_t control_mode = STABILIZE;
+static int8_t control_mode = STABILIZE; //MAI!
 // Used to maintain the state of the previous control switch position
 // This is set to -1 when we need to re-read the switch
 static uint8_t oldSwitchPosition;
@@ -667,7 +667,7 @@ static int32_t baro_alt;
 // Each Flight mode is a unique combination of these modes
 //
 // The current desired control scheme for Yaw
-static uint8_t yaw_mode = STABILIZE_YAW;
+static uint8_t yaw_mode = STABILIZE_YAW; // FOR MAI! AEROXO CODE.
 // The current desired control scheme for roll and pitch / navigation
 static uint8_t roll_pitch_mode = STABILIZE_RP;
 // The current desired control scheme for altitude hold
@@ -945,9 +945,15 @@ void setup() {
     board_vcc_analog_source = hal.analogin->channel(ANALOG_INPUT_BOARD_VCC);
 
     init_ardupilot();
-
+    
     // initialise the main loop scheduler
     scheduler.init(&scheduler_tasks[0], sizeof(scheduler_tasks)/sizeof(scheduler_tasks[0]));
+    hal.rcout->enable_ch(6);
+    hal.rcout->write(6, 1000);
+    hal.rcout->enable_ch(7);
+    hal.rcout->write(7, 1500);
+    
+    hal.rcout->set_freq(0xC0, 50);
 }
 
 /*
@@ -1024,7 +1030,28 @@ static void fast_loop()
     // IMU DCM Algorithm
     // --------------------
     read_AHRS();
+   // uint16_t channels[8];
+    	//hal.rcin->read(channels, 8);
+	//long rcthr = channels[7];
+	/*const long CONV_THROTTLE = 1600;
+	
+    if ( rcthr < CONV_THROTTLE )
+    { //qua
+    hal.rcout->enable_ch(6);
+    hal.rcout->write(6, 1500);
+    hal.rcout->enable_ch(7);
+    hal.rcout->write(7, 1500);
+    hal.rcout->set_freq(0xC0, 50);
+    }
+    else
+    {
 
+    hal.rcout->enable_ch(6);
+    hal.rcout->write(6, 2000);
+    hal.rcout->enable_ch(7);
+    hal.rcout->write(7, 1000);
+    hal.rcout->set_freq(0xC0, 50);
+    }*/
     // reads all of the necessary trig functions for cameras, throttle, etc.
     // --------------------------------------------------------------------
     update_trig();
@@ -1064,7 +1091,11 @@ static void fast_loop()
     // -----------------------------------------
     read_radio();
     read_control_switch();
-
+    
+    
+    //AEROXO
+    
+    motors.set_conv(get_conversion_function());
     // custom code/exceptions for flight modes
     // ---------------------------------------
     update_yaw_mode();
@@ -1604,9 +1635,15 @@ bool set_roll_pitch_mode(uint8_t new_roll_pitch_mode)
         case ROLL_PITCH_AUTO:
         case ROLL_PITCH_STABLE_OF:
         case ROLL_PITCH_DRIFT:
-        case ROLL_PITCH_LOITER:
         case ROLL_PITCH_SPORT:
             roll_pitch_initialised = true;
+            break;
+
+        case ROLL_PITCH_LOITER:
+            // require gps lock
+            if( ap.home_is_set ) {
+                roll_pitch_initialised = true;
+            }
             break;
 
 #if AUTOTUNE == ENABLED
@@ -1674,13 +1711,8 @@ void update_roll_pitch_mode(void)
         // apply SIMPLE mode transform
         update_simple_mode();
 
-        if(failsafe.radio) {
-            // don't allow copter to fly away during failsafe
-            get_pilot_desired_lean_angles(0.0f, 0.0f, control_roll, control_pitch);
-        } else {
-            // convert pilot input to lean angles
-            get_pilot_desired_lean_angles(g.rc_1.control_in, g.rc_2.control_in, control_roll, control_pitch);
-        }
+        // convert pilot input to lean angles
+        get_pilot_desired_lean_angles(g.rc_1.control_in, g.rc_2.control_in, control_roll, control_pitch);
 
         // pass desired roll, pitch to stabilize attitude controllers
         get_stabilize_roll(control_roll);
@@ -1704,13 +1736,8 @@ void update_roll_pitch_mode(void)
         // apply SIMPLE mode transform
         update_simple_mode();
 
-        if(failsafe.radio) {
-            // don't allow copter to fly away during failsafe
-            get_pilot_desired_lean_angles(0.0f, 0.0f, control_roll, control_pitch);
-        } else {
-            // convert pilot input to lean angles
-            get_pilot_desired_lean_angles(g.rc_1.control_in, g.rc_2.control_in, control_roll, control_pitch);
-        }
+        // convert pilot input to lean angles
+        get_pilot_desired_lean_angles(g.rc_1.control_in, g.rc_2.control_in, control_roll, control_pitch);
 
         // mix in user control with optical flow
         get_stabilize_roll(get_of_roll(control_roll));
@@ -1729,13 +1756,8 @@ void update_roll_pitch_mode(void)
         control_roll            = g.rc_1.control_in;
         control_pitch           = g.rc_2.control_in;
 
-        if(failsafe.radio) {
-            // don't allow loiter target to move during failsafe
-            wp_nav.move_loiter_target(0.0f, 0.0f, 0.01f);
-        } else {
-            // update loiter target from user controls
-            wp_nav.move_loiter_target(g.rc_1.control_in, g.rc_2.control_in, 0.01f);
-        }
+        // update loiter target from user controls
+        wp_nav.move_loiter_target(control_roll, control_pitch,0.01f);
 
         // copy latest output from nav controller to stabilize controller
         nav_roll = wp_nav.get_desired_roll();

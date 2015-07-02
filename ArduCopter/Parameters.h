@@ -134,13 +134,11 @@ public:
         // 110: Telemetry control
         //
         k_param_gcs0 = 110,
-        k_param_gcs1,
+        k_param_gcs3,
         k_param_sysid_this_mav,
         k_param_sysid_my_gcs,
-        k_param_serial1_baud,
+        k_param_serial3_baud,
         k_param_telem_delay,
-        k_param_gcs2,
-        k_param_serial2_baud,
 
         //
         // 140: Sensor parameters
@@ -283,10 +281,7 @@ public:
     //
     AP_Int16        sysid_this_mav;
     AP_Int16        sysid_my_gcs;
-    AP_Int8         serial1_baud;
-#if MAVLINK_COMM_NUM_BUFFERS > 2
-    AP_Int8         serial2_baud;
-#endif
+    AP_Int8         serial3_baud;
     AP_Int8         telem_delay;
 
     AP_Int16        rtl_altitude;
@@ -383,7 +378,11 @@ public:
     RC_Channel_aux          rc_8;
     RC_Channel_aux          rc_10;
     RC_Channel_aux          rc_11;
-
+  
+  
+    //Conversion
+    float               p_conversion=1500.0f;
+    
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4
     RC_Channel_aux          rc_9;
     RC_Channel_aux          rc_12;
@@ -402,6 +401,11 @@ public:
     AC_PID                  pid_rate_roll;
     AC_PID                  pid_rate_pitch;
     AC_PID                  pid_rate_yaw;
+    
+    AC_PID                  pid_rate_roll_tilt;
+    AC_PID                  pid_rate_pitch_tilt;
+    AC_PID                  pid_rate_yaw_tilt;
+    
     AC_PID                  pid_loiter_rate_lat;
     AC_PID                  pid_loiter_rate_lon;
 
@@ -451,12 +455,20 @@ public:
         rc_12               (CH_12),
 #endif
 
+
+        // TILTROTOR PARAMS ARE THERE!!!!!
+        
+        
         // PID controller	initial P	        initial I		    initial D
         //          initial imax
         //-----------------------------------------------------------------------------------------------------
         pid_rate_roll           (RATE_ROLL_P,           RATE_ROLL_I,            RATE_ROLL_D,            RATE_ROLL_IMAX),
         pid_rate_pitch          (RATE_PITCH_P,          RATE_PITCH_I,           RATE_PITCH_D,           RATE_PITCH_IMAX),
         pid_rate_yaw            (RATE_YAW_P,            RATE_YAW_I,             RATE_YAW_D,             RATE_YAW_IMAX),
+        
+        pid_rate_roll_tilt           (0.008f,           0.006f,            0,            500),
+        pid_rate_pitch_tilt          (0.008f,          0.006f,           0,           500),
+        pid_rate_yaw_tilt            (0,            0,             0,             RATE_YAW_IMAX),
 
         pid_loiter_rate_lat     (LOITER_RATE_P,         LOITER_RATE_I,          LOITER_RATE_D,          LOITER_RATE_IMAX),
         pid_loiter_rate_lon     (LOITER_RATE_P,         LOITER_RATE_I,          LOITER_RATE_D,          LOITER_RATE_IMAX),
