@@ -27,7 +27,6 @@ extern const AP_HAL::HAL& hal;
 // Init
 void AP_MotorsMatrix::Init()
 {
-	m_Conv=0;
     // call parent Init function to set-up throttle curve
     AP_Motors::Init();
 
@@ -233,23 +232,17 @@ void AP_MotorsMatrix::output_armed()
         rpy_high = 0;
         for (i=0; i<AP_MOTORS_MAX_NUM_MOTORS; i++) {
             if (motor_enabled[i]) {
-               
+                rpy_out[i] =    rpy_out[i] +
+                                yaw_allowed * _yaw_factor[i];
 
-					// No changes for now!
-
-
-					rpy_out[i] =    rpy_out[i] +
-									yaw_allowed * _yaw_factor[i]*m_Conv/1000;
-
-					// record lowest roll+pitch+yaw command
-					if( rpy_out[i] < rpy_low ) {
-						rpy_low = rpy_out[i];
-					}
-					// record highest roll+pitch+yaw command
-					if( rpy_out[i] > rpy_high) {
-						rpy_high = rpy_out[i];
-					}
-				
+                // record lowest roll+pitch+yaw command
+                if( rpy_out[i] < rpy_low ) {
+                    rpy_low = rpy_out[i];
+                }
+                // record highest roll+pitch+yaw command
+                if( rpy_out[i] > rpy_high) {
+                    rpy_high = rpy_out[i];
+                }
             }
         }
 
@@ -408,17 +401,6 @@ void AP_MotorsMatrix::add_motor(int8_t motor_num, float angle_degrees, float yaw
         yaw_factor,                                      // yaw factor
         testing_order);
 
-}
-
-void AP_MotorsMatrix::add_motor2(int8_t motor_num, float angle_degrees, float yaw_factor, uint8_t testing_order)
-{
-    // call raw motor set-up method
-     add_motor_raw(
-        motor_num,
-        cosf(radians(angle_degrees + 90))*sqrt(2),               // roll factor
-        cosf(radians(angle_degrees))*sqrt(2),                    // pitch factor
-        yaw_factor,                                      // yaw factor
-        testing_order);
 }
 
 // remove_motor - disabled motor and clears all roll, pitch, throttle factors for this motor

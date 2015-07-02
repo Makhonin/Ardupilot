@@ -47,7 +47,6 @@ public:
 
     // add_motor using just position and yaw_factor (or prop direction)
     void                add_motor(int8_t motor_num, float angle_degrees, float yaw_factor, uint8_t testing_order);
-	void                add_motor2(int8_t motor_num, float angle_degrees, float yaw_factor, uint8_t testing_order);
 
     // remove_motor
     void                remove_motor(int8_t motor_num);
@@ -60,20 +59,10 @@ public:
         remove_all_motors();
     };
 
-	void                set_conv(int16_t conv)
-	{
-		m_Conv=conv;
-	}
-
 protected:
     // output - sends commands to the motors
     virtual void        output_armed();
     virtual void        output_disarmed();
-
-	int16_t get_conv_function()
-	{
-		return m_Conv;
-	}
 
     // add_motor using raw roll, pitch, throttle and yaw factors
     void                add_motor_raw(int8_t motor_num, float roll_fac, float pitch_fac, float yaw_fac, uint8_t testing_order);
@@ -83,7 +72,6 @@ protected:
     float               _pitch_factor[AP_MOTORS_MAX_NUM_MOTORS]; // each motors contribution to pitch
     float               _yaw_factor[AP_MOTORS_MAX_NUM_MOTORS];  // each motors contribution to yaw (normally 1 or -1)
     uint8_t             _test_order[AP_MOTORS_MAX_NUM_MOTORS];  // order of the motors in the test sequence
-	int16_t m_Conv;
 };
 
 #endif  // AP_MOTORSMATRIX

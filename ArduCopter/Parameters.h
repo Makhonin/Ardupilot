@@ -466,9 +466,9 @@ public:
         pid_rate_pitch          (RATE_PITCH_P,          RATE_PITCH_I,           RATE_PITCH_D,           RATE_PITCH_IMAX),
         pid_rate_yaw            (RATE_YAW_P,            RATE_YAW_I,             RATE_YAW_D,             RATE_YAW_IMAX),
         
-        pid_rate_roll_tilt           (0.008f,           0.006f,            0,            500),
-        pid_rate_pitch_tilt          (0.008f,          0.006f,           0,           500),
-        pid_rate_yaw_tilt            (0,            0,             0,             RATE_YAW_IMAX),
+        pid_rate_roll_tilt           (RATE_ROLL_P,           RATE_ROLL_I,            RATE_ROLL_D,            RATE_ROLL_IMAX),
+        pid_rate_pitch_tilt          (RATE_PITCH_P,          RATE_PITCH_I,           RATE_PITCH_D,           RATE_PITCH_IMAX),
+        pid_rate_yaw_tilt            (RATE_YAW_P,            RATE_YAW_I,             RATE_YAW_D,             RATE_YAW_IMAX),
 
         pid_loiter_rate_lat     (LOITER_RATE_P,         LOITER_RATE_I,          LOITER_RATE_D,          LOITER_RATE_IMAX),
         pid_loiter_rate_lon     (LOITER_RATE_P,         LOITER_RATE_I,          LOITER_RATE_D,          LOITER_RATE_IMAX),
