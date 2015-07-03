@@ -1057,7 +1057,7 @@ static void fast_loop()
     update_trig();
 
 	// Acrobatic control
-    if (ap.do_flip) {
+    /*if (ap.do_flip) {
         if(abs(g.rc_1.control_in) < 4000) {
             // calling roll_flip will override the desired roll rate and throttle output
             roll_flip();
@@ -1066,7 +1066,7 @@ static void fast_loop()
             ap.do_flip = false;
             Log_Write_Event(DATA_EXIT_FLIP);
         }
-    }
+    }*/
 
     // run low level rate controllers that only require IMU data
     run_rate_controllers();
@@ -1102,7 +1102,7 @@ static void fast_loop()
     update_roll_pitch_mode();
 
     // update targets to rate controllers
-    update_rate_contoller_targets();
+    //update_rate_contoller_targets();
 }
 
 // throttle_loop - should be run at 50 hz

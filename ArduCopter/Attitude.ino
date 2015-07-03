@@ -29,42 +29,6 @@ static void get_pilot_desired_lean_angles(int16_t roll_in, int16_t pitch_in, int
     pitch_out = pitch_in * _scaler;
 }
 
-static void
-get_stabilize_roll(int32_t target_angle)
-{
-    // angle error
-    target_angle = wrap_180_cd(target_angle - ahrs.roll_sensor);
-
-    // convert to desired rate
-    int32_t target_rate = g.pi_stabilize_roll.kP() * target_angle;
-
-    // constrain the target rate
-    if (!ap.disable_stab_rate_limit) {
-        target_rate = constrain_int32(target_rate, -g.angle_rate_max, g.angle_rate_max);
-    }
-
-    // set targets for rate controller
-    set_roll_rate_target(target_rate, EARTH_FRAME);
-}
-
-static void
-get_stabilize_pitch(int32_t target_angle)
-{
-    // angle error
-    target_angle            = wrap_180_cd(target_angle - ahrs.pitch_sensor);
-
-    // convert to desired rate
-   // int32_t target_rate = g.pi_stabilize_pitch.kP() * target_angle;
-    int32_t target_rate = g.pi_stabilize_pitch.kP() * target_angle;
-    // constrain the target rate
-    if (!ap.disable_stab_rate_limit) {
-        target_rate = constrain_int32(target_rate, -g.angle_rate_max, g.angle_rate_max);
-    }
-
-    // set targets for rate controller
-    set_pitch_rate_target(target_rate, EARTH_FRAME);
-}
-
 //AEROXO TILTROTOR CODE
 static int16_t
 get_conversion_function()
@@ -76,22 +40,81 @@ get_conversion_function()
 }
 
 static void
+get_stabilize_roll(int32_t target_angle)
+{
+    int16_t conv = get_conversion_function(); //0 to 1000
+    // angle error
+    target_angle = wrap_180_cd(target_angle - ahrs.roll_sensor);
+    target_angle/=57;  //MAI
+    // convert to desired rate
+    // PI regulator.
+   // With conversion. 
+   //First  - P part.
+    int32_t target_rate = (g.pi_stabilize_roll.kP() * target_angle*conv/1000)+(g.pi_stabilize_roll_tilt.kP() * target_angle*(1000-conv)/1000);
+    //Then comes I part. MAI Coef-s.
+    target_rate+=g.pi_stabilize_roll.get_i((0.085f * target_angle*conv/1000)+(0.15f * target_angle*(1000-conv)/1000),G_Dt);
+    //target_rate;  //MAI
+    // constrain the target rate
+    if (!ap.disable_stab_rate_limit) {
+        target_rate = constrain_int32(target_rate, -g.angle_rate_max, g.angle_rate_max);
+    }
+    
+    // set targets for rate controller
+    set_roll_rate_target(target_rate, BODY_FRAME);
+}
+
+static void
+get_stabilize_pitch(int32_t target_angle)
+{
+    int16_t conv = get_conversion_function(); //0 to 1000
+    // angle error
+    target_angle            = wrap_180_cd(target_angle - ahrs.pitch_sensor);
+    target_angle/=57;  //MAI
+    // convert to desired rate
+   // int32_t target_rate = g.pi_stabilize_pitch.kP() * target_angle;
+   
+   //AEROXO TILTROTOR CODE
+   
+   
+   // PI regulator.
+   // With conversion. 
+    int32_t target_rate = (g.pi_stabilize_pitch.kP() * target_angle*conv/1000)+(g.pi_stabilize_pitch_tilt.kP() * target_angle*(1000-conv)/1000);
+    //Then comes I part. MAI Coef-s.
+    target_rate+=g.pi_stabilize_pitch.get_i((0.098f * target_angle*conv/1000)+(0.243f * target_angle*(1000-conv)/1000),G_Dt);
+    //target_rate;  //MAI
+    // constrain the target rate
+    if (!ap.disable_stab_rate_limit) {
+        target_rate = constrain_int32(target_rate, -g.angle_rate_max, g.angle_rate_max);
+    }
+
+    // set targets for rate controller
+    set_pitch_rate_target(target_rate, BODY_FRAME);
+}
+
+static void
 get_stabilize_yaw(int32_t target_angle)
 {
+    int16_t conv = get_conversion_function(); //0 to 1000
     int32_t target_rate;
     int32_t angle_error;
     int32_t output = 0;
 
     // angle error
-    angle_error = wrap_180_cd(target_angle - ahrs.yaw_sensor);
+    angle_error = wrap_180_cd(target_angle - ahrs.yaw_sensor- (omega.z * DEGX100));
 
     // limit the error we're feeding to the PID
     angle_error = constrain_int32(angle_error, -4500, 4500);
-
+    angle_error/=57; // For MAI -> radians.
     // convert angle error to desired Rate:
     //target_rate = g.pi_stabilize_yaw.kP() * angle_error;
-    target_rate = g.pi_stabilize_yaw.kP() * angle_error;
     
+    target_rate = (g.pi_stabilize_yaw.kP() * angle_error *conv/1000)+(g.pi_stabilize_yaw_tilt.kP() * angle_error *(1000-conv)/1000);
+    //Then comes I part. MAI Coef-s.
+    target_rate+=g.pi_stabilize_yaw.get_i((0.072f * angle_error *conv/1000)+(0.051f * angle_error *(1000-conv)/1000),G_Dt);
+    //target_rate;  //MAI
+    
+    
+    //target_rate;  //MAI
     // do not use rate controllers for helicotpers with external gyros
 #if FRAME_CONFIG == HELI_FRAME
     if(motors.tail_type() == AP_MOTORS_HELI_TAILTYPE_SERVO_EXTGYRO) {
@@ -111,7 +134,7 @@ get_stabilize_yaw(int32_t target_angle)
 #endif
 
     // set targets for rate controller
-    set_yaw_rate_target(target_rate, EARTH_FRAME);
+    set_yaw_rate_target(target_rate, BODY_FRAME);
 }
 
 // get_acro_level_rates - calculate earth frame rate corrections to pull the copter back to level while in ACRO mode
@@ -483,7 +506,7 @@ run_rate_controllers()
     }
 #else
     // call rate controllers
-    g.rc_1.servo_out = get_rate_roll(roll_rate_target_bf);
+    g.rc_1.servo_out = get_rate_roll(roll_rate_target_bf); // To motors output!
     g.rc_2.servo_out = get_rate_pitch(pitch_rate_target_bf);
     g.rc_4.servo_out = get_rate_yaw(yaw_rate_target_bf);
 #endif
@@ -500,28 +523,25 @@ run_rate_controllers()
 static int16_t
 get_rate_roll(int32_t target_rate)
 {
-    int32_t p,i,d;                  // used to capture pid values for logging
+    int32_t p,i,d,p_tilt;                  // used to capture pid values for logging
     int32_t current_rate;           // this iteration's rate
     int32_t rate_error;             // simply target_rate - current_rate
     int32_t output;                 // output from pid controller
-
+    int16_t conv = get_conversion_function();
     // get current rate
     current_rate    = (omega.x * DEGX100);
 
-    // call pid controller
-    rate_error  = target_rate - current_rate;
+    // call pid controller Rate stab!!!
+    //rate_error  = target_rate - current_rate;
+    rate_error  = -current_rate;
+    
     p           = g.pid_rate_roll.get_p(rate_error);
+    p_tilt           = g.pid_rate_roll_tilt.get_p(rate_error);
+    
+    p = p*conv/1000+p_tilt*(1000-conv)/1000;
 
-    // get i term
-    i = g.pid_rate_roll.get_integrator();
 
-    // update i term as long as we haven't breached the limits or the I term will certainly reduce
-    if (!motors.limit.roll_pitch || ((i>0&&rate_error<0)||(i<0&&rate_error>0))) {
-        i = g.pid_rate_roll.get_i(rate_error, G_Dt);
-    }
-
-    d = g.pid_rate_roll.get_d(rate_error, G_Dt);
-    output = p + i + d;
+    output = target_rate+p;// + i + d;
 
     // constrain output
     output = constrain_int32(output, -5000, 5000);
@@ -546,28 +566,24 @@ get_rate_roll(int32_t target_rate)
 static int16_t
 get_rate_pitch(int32_t target_rate)
 {
-    int32_t p,i,d;                                                                      // used to capture pid values for logging
+    int32_t p,i,d,p_tilt;                                                                      // used to capture pid values for logging
     int32_t current_rate;                                                       // this iteration's rate
     int32_t rate_error;                                                                 // simply target_rate - current_rate
     int32_t output;                                                                     // output from pid controller
-
+    int16_t conv = get_conversion_function(); //0 to 1000
     // get current rate
     current_rate    = (omega.y * DEGX100);
-
+    
     // call pid controller
-    rate_error      = target_rate - current_rate;
-    p               = g.pid_rate_pitch.get_p(rate_error);
+    rate_error  = -current_rate;
+    
+    p           = g.pid_rate_pitch.get_p(rate_error);
+    p_tilt           = g.pid_rate_pitch_tilt.get_p(rate_error);
+    
+    p = p*conv/1000+p_tilt*(1000-conv)/1000;
 
-    // get i term
-    i = g.pid_rate_pitch.get_integrator();
 
-    // update i term as long as we haven't breached the limits or the I term will certainly reduce
-    if (!motors.limit.roll_pitch || ((i>0&&rate_error<0)||(i<0&&rate_error>0))) {
-        i = g.pid_rate_pitch.get_i(rate_error, G_Dt);
-    }
-
-    d = g.pid_rate_pitch.get_d(rate_error, G_Dt);
-    output = p + i + d;
+    output = target_rate+p;// + i + d;
 
     // constrain output
     output = constrain_int32(output, -5000, 5000);
@@ -597,21 +613,9 @@ get_rate_yaw(int32_t target_rate)
     // rate control
     rate_error              = target_rate - (omega.z * DEGX100);
 
-    // separately calculate p, i, d values for logging
-    p = g.pid_rate_yaw.get_p(rate_error);
+    
 
-    // get i term
-    i = g.pid_rate_yaw.get_integrator();
-
-    // update i term as long as we haven't breached the limits or the I term will certainly reduce
-    if (!motors.limit.yaw || ((i>0&&rate_error<0)||(i<0&&rate_error>0))) {
-        i = g.pid_rate_yaw.get_i(rate_error, G_Dt);
-    }
-
-    // get d value
-    d = g.pid_rate_yaw.get_d(rate_error, G_Dt);
-
-    output  = p+i+d;
+    output  = target_rate;//p+i+d;
     output = constrain_int32(output, -4500, 4500);
 
 #if LOGGING_ENABLED == ENABLED
