@@ -1468,7 +1468,7 @@ void update_yaw_mode(void)
             nav_yaw = ahrs.yaw_sensor;
         }
         // heading hold at heading held in nav_yaw but allow input from pilot
-		get_stabilize_yaw(nav_yaw);
+		get_stabilize_yaw(pilot_yaw);
         //get_yaw_rate_stabilized_ef(pilot_yaw);
         break;
 
