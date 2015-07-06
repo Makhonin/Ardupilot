@@ -137,14 +137,15 @@ static void read_radio()
 
 
     //int32_t roll_angle2 = (wrap_180_cd(ahrs.roll_sensor)+g.angle_max)/36-g.angle_max/36; /* (x/MAX+1)/2*1000/180*MAX/100 */
-    int32_t roll_angle2 = (wrap_180_cd(get_rate_roll(roll_rate_target_bf)))/5*(1000-get_conversion_function())/1000;//get_rate_roll(roll_rate_target_bf);
-    int32_t yaw_angle2 = (wrap_180_cd(get_rate_yaw(yaw_rate_target_bf)))/5*(get_conversion_function())/1000;
+    // Because get_rate_.. output is in degrees/something
+    int32_t roll_angle2 = (wrap_180_cd(get_rate_roll(roll_rate_target_bf)))*(1000-get_conversion_function())/4500*57;//get_rate_roll(roll_rate_target_bf);
+    int32_t yaw_angle2 = (wrap_180_cd(get_rate_yaw(yaw_rate_target_bf)))*(get_conversion_function())/4500*57;
     if ( periods[7] > CONV_THROTTLE )
     { //qua
       hal.rcout->enable_ch(6);
-      hal.rcout->write(6, (yaw_angle2)*10/4+1000);
+      hal.rcout->write(6, (yaw_angle2)+1000);
       hal.rcout->enable_ch(7);
-      hal.rcout->write(7, 2000-(-yaw_angle2)*10/4);
+      hal.rcout->write(7, 2000-(-yaw_angle2));
       hal.rcout->set_freq(0xC0, 50);
       g.p_conversion=1500.0f;
     }
@@ -158,9 +159,9 @@ static void read_radio()
       }
 
       hal.rcout->enable_ch(6);
-      hal.rcout->write(6, (1500-g.p_conversion-roll_angle2+yaw_angle2)*10/4+1000);
+      hal.rcout->write(6, (1500-g.p_conversion)*10/4+1000-roll_angle2+yaw_angle2);
       hal.rcout->enable_ch(7);
-      hal.rcout->write(7, 2000-(1500-g.p_conversion+roll_angle2-yaw_angle2)*10/4);
+      hal.rcout->write(7, 2000-(1500-g.p_conversion)*10/4-roll_angle2+yaw_angle2);
       hal.rcout->set_freq(0xC0, 50);
       /*hal.rcout->enable_ch(6);
        hal.rcout->write(6, (periods[7]-1500)*10/4+1000);
