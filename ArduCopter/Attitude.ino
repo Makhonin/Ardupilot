@@ -30,8 +30,24 @@ static void get_pilot_desired_lean_angles(int16_t roll_in, int16_t pitch_in, int
 }
 
 //AEROXO TILTROTOR CODE
+
 static int16_t
 get_conversion_function()
+{
+  int16_t conv;
+
+  conv = 1000-(1900-g.p_conversion)/8*10;  //Min 1100 Max 1900 -> (max-x)/800 Default 1900
+  return conv;
+}
+
+// Input 1900 - Copter
+// Input 1500 - Plane
+// Output 1000 - Copter
+// Output 0 - Plane
+// Output 1000 - 0
+// Output 0 - 90
+static int16_t
+get_input_function()
 {
   int16_t conv;
 
@@ -53,7 +69,7 @@ get_stabilize_roll(int32_t target_angle)
   //First  - P part.
   int32_t target_rate = (g.pi_stabilize_roll.kP() * target_angle*conv/1000)+(g.pi_stabilize_roll_tilt.kP() * target_angle*(1000-conv)/1000);
   //Then comes I part. MAI Coef-s.
-  target_rate+=g.pi_stabilize_roll.get_i((0.085f * target_angle*conv/1000)+(0.15f * target_angle*(1000-conv)/1000),G_Dt);
+  target_rate+=g.pi_stabilize_roll.get_i((0.076f * target_angle*conv/1000)+(0.133f * target_angle*(1000-conv)/1000),G_Dt);
   //target_rate;  //MAI
   // constrain the target rate
   if (!ap.disable_stab_rate_limit) {
@@ -81,7 +97,9 @@ get_stabilize_pitch(int32_t target_angle)
   // With conversion. 
   int32_t target_rate = (g.pi_stabilize_pitch.kP() * target_angle*conv/1000)+(g.pi_stabilize_pitch_tilt.kP() * target_angle*(1000-conv)/1000);
   //Then comes I part. MAI Coef-s.
-  target_rate+=g.pi_stabilize_pitch.get_i((0.098f * target_angle*conv/1000)+(0.243f * target_angle*(1000-conv)/1000),G_Dt);
+  //target_rate+=g.pi_stabilize_pitch.get_i((0.098f * target_angle*conv/1000)+(0.243f * target_angle*(1000-conv)/1000),G_Dt);
+  //67.5 11.25 
+  target_rate+=g.pi_stabilize_pitch.get_i((0.109f * target_angle*conv/1000)+(1.111f * target_angle*(1000-conv)/1000),G_Dt);
   //target_rate;  //MAI
   // constrain the target rate
   if (!ap.disable_stab_rate_limit) {
@@ -111,7 +129,8 @@ get_stabilize_yaw(int32_t target_angle)
 
   target_rate = (g.pi_stabilize_yaw.kP() * angle_error *conv/1000)+(g.pi_stabilize_yaw_tilt.kP() * angle_error *(1000-conv)/1000);
   //Then comes I part. MAI Coef-s.
-  target_rate+=g.pi_stabilize_yaw.get_i((0.072f * angle_error *conv/1000)+(0.051f * angle_error *(1000-conv)/1000),G_Dt);
+  //target_rate+=g.pi_stabilize_yaw.get_i((0.072f * angle_error *conv/1000)+(0.051f * angle_error *(1000-conv)/1000),G_Dt);
+  target_rate+=g.pi_stabilize_yaw.get_i((0.064f * angle_error *conv/1000)+(0.045f * angle_error *(1000-conv)/1000),G_Dt);
   //target_rate;  //MAI
 
 
