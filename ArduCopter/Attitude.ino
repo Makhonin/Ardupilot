@@ -43,9 +43,19 @@ get_conversion_function()
     }
     else
     {
-      conv = 1000-(1500-g.p_conversion)/4*10;  //Min 1100 Max 1500 -> (max-x)/800 Default 1500
+      conv = 1000-(1500-g.p_conversion)/4*10;  //Min 1100 Max 1500 -> (max-x)/400 Default 1500
       return conv;
     }
+}
+
+
+static int16_t
+get_conversion_function2()
+{
+  int16_t conv;
+
+  conv = 1000-(1900-g.p_conversion)/8*10;  //Min 1100 Max 1900 -> (max-x)/800 Default 1900
+  return conv;
 }
 
 // Input 1900 - Copter
@@ -1346,9 +1356,20 @@ static void reset_I_all(void)
 
 static void reset_rate_I()
 {
+  g.pi_stabilize_roll.reset_I();
+  g.pi_stabilize_roll.reset_I();
+  g.pi_stabilize_roll.reset_I();
+  
+  g.pi_stabilize_roll_tilt.reset_I();
+  g.pi_stabilize_roll_tilt.reset_I();
+  g.pi_stabilize_roll_tilt.reset_I();
+  
   g.pid_rate_roll.reset_I();
   g.pid_rate_pitch.reset_I();
   g.pid_rate_yaw.reset_I();
+  g.pid_rate_roll_tilt.reset_I();
+  g.pid_rate_pitch_tilt.reset_I();
+  g.pid_rate_yaw_tilt.reset_I();
 }
 
 static void reset_optflow_I(void)
