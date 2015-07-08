@@ -1261,7 +1261,7 @@ static void one_hz_loop()
     if (!motors.armed()) {
         // make it possible to change ahrs orientation at runtime during initial config
         ahrs.set_orientation();
-
+        reset_rate_I();
         // check the user hasn't updated the frame orientation
         motors.set_frame_orientation(g.frame_orientation);
     }
