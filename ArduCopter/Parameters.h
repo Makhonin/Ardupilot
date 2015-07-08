@@ -470,7 +470,7 @@ public:
         pid_rate_pitch          (0.069f,          0,           0,           0),
         pid_rate_yaw            (0.082f,            0,             0,            0),
         
-        pid_rate_roll_tilt           (0.102f,           0,            0,            0),
+        pid_rate_roll_tilt           (0.053f,           0,            0,            0),
         pid_rate_pitch_tilt          (0.172f,          0,           0,           0),
         pid_rate_yaw_tilt            (0,            0,             0,             0),
 
@@ -501,8 +501,8 @@ public:
         pi_stabilize_yaw        (0.082f,       1,        350),
 
         pi_stabilize_roll_tilt       (0.35f,      1,       350),
-        pi_stabilize_pitch_tilt      (0.216f,     1,      350),
-        pi_stabilize_yaw_tilt        (0.047f,       1,        350),
+        pi_stabilize_pitch_tilt      (0.432f,     1,      350),
+        pi_stabilize_yaw_tilt        (0.100f,       1,        350),
         
         pi_alt_hold             (0,            0,             0)
     {

@@ -1326,6 +1326,13 @@ static void reset_rate_I()
   g.pid_rate_pitch_tilt.reset_I();
   g.pid_rate_yaw_tilt.reset_I();
   
+  g.pi_stabilize_roll_tilt.reset_I();
+  g.pi_stabilize_pitch_tilt.reset_I();
+  g.pi_stabilize_yaw_tilt.reset_I();
+  
+  g.pi_stabilize_roll.reset_I();
+  g.pi_stabilize_pitch.reset_I();
+  g.pi_stabilize_yaw.reset_I();
   
   g.pid_rate_roll.reset_I();
   g.pid_rate_pitch.reset_I();
