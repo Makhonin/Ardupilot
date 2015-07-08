@@ -141,8 +141,8 @@ static void read_radio()
     int32_t roll_angle2 = (wrap_180_cd(get_rate_roll(roll_rate_target_bf)))*(1000-get_conversion_function())/4500*20;//get_rate_roll(roll_rate_target_bf);
     int32_t yaw_angle2 = (wrap_180_cd(get_rate_yaw(yaw_rate_target_bf)))*(get_conversion_function())/4500*20;
     
-    roll_angle2 = constrain_int32(roll_angle2, -83, 83)
-    yaw_angle2 = constrain_int32(yaw_angle2, -83, 83)
+    roll_angle2 = constrain_int32(roll_angle2, -83, 83);
+    yaw_angle2 = constrain_int32(yaw_angle2, -83, 83);
     
     if ( periods[7] > CONV_THROTTLE )
     { //qua

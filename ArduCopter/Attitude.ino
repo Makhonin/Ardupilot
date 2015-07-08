@@ -35,7 +35,7 @@ get_conversion_function()
 {
   int16_t conv;
 
-  conv = 1000-(1500-g.p_conversion)/8*10;  //Min 1100 Max 1900 -> (max-x)/800 Default 1900
+  conv = 1000-(1500-g.p_conversion)/4*10;  //Min 1100 Max 1900 -> (max-x)/800 Default 1900
   return conv;
 }
 
