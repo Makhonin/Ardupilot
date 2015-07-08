@@ -141,7 +141,6 @@ static void read_radio()
     int32_t roll_angle2 = (wrap_180_cd(get_rate_roll(roll_rate_target_bf)))*(1000-get_conversion_function())/4500*20;//get_rate_roll(roll_rate_target_bf);
     int32_t yaw_angle2 = (wrap_180_cd(get_rate_yaw(yaw_rate_target_bf)))*(get_conversion_function())/4500*20;
     
-    
     roll_angle2 = constrain_int32(roll_angle2, -83, 83);
     yaw_angle2 = constrain_int32(yaw_angle2, -83, 83);
     
@@ -162,7 +161,7 @@ static void read_radio()
       {
         g.p_conversion+=(periods[7]-g.p_conversion)*0.1f;
       }
-      //g.p_conversion - from 1500 to 1100
+
       hal.rcout->enable_ch(6);
       hal.rcout->write(6, (1500-g.p_conversion)*10/4+1000-roll_angle2+yaw_angle2);
       hal.rcout->enable_ch(7);

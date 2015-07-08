@@ -35,7 +35,8 @@ get_conversion_function()
 {
   int16_t conv;
 
-  conv = 1000-(1900-g.p_conversion)/8*10;  //Min 1100 Max 1900 -> (max-x)/800 Default 1900
+  conv = 1000-(1500-g.p_conversion)/4*10;  //Min 1100 Max 1900 -> (max-x)/800 Default 1900
+  conv=constrain_int16(conv, 0, 1000);
   return conv;
 }
 
@@ -1319,7 +1320,7 @@ static void reset_I_all(void)
 
 static void reset_rate_I()
 {
-   g.pi_stabilize_roll.reset_I();
+  g.pi_stabilize_roll.reset_I();
   g.pi_stabilize_roll.reset_I();
   g.pi_stabilize_roll.reset_I();
   
@@ -1334,7 +1335,6 @@ static void reset_rate_I()
   g.pid_rate_pitch_tilt.reset_I();
   g.pid_rate_yaw_tilt.reset_I();
 }
-
 static void reset_optflow_I(void)
 {
   g.pid_optflow_roll.reset_I();
