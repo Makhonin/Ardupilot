@@ -496,13 +496,13 @@ public:
         pi_stabilize_pitch_tilt      (0.216f,     0.15f,      500),
         pi_stabilize_yaw_tilt        (0.047f,       0.051f,        500),*/
         
-        pi_stabilize_roll       (0.110f,      1,       500),
-        pi_stabilize_pitch      (0.157f,     1,      500),
-        pi_stabilize_yaw        (0.073f,       1,        500),
+        pi_stabilize_roll       (0.110f,      1,       350),
+        pi_stabilize_pitch      (0.157f,     1,      350),
+        pi_stabilize_yaw        (0.073f,       1,        350),
 
-        pi_stabilize_roll_tilt       (0.192f,      1,       500),
-        pi_stabilize_pitch_tilt      (1.600f,     1,      500),
-        pi_stabilize_yaw_tilt        (0.042f,       1,        500),
+        pi_stabilize_roll_tilt       (0.192f,      1,       350),
+        pi_stabilize_pitch_tilt      (1.600f,     1,      350),
+        pi_stabilize_yaw_tilt        (0.042f,       1,        350),
         
         pi_alt_hold             (0,            0,             0)
     {
