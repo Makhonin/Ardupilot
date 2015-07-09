@@ -181,7 +181,7 @@ void AP_MotorsMatrix::output_armed()
         for (i=0; i<AP_MOTORS_MAX_NUM_MOTORS; i++) {
             if (motor_enabled[i]) {
                 rpy_out[i] = _rc_roll->pwm_out * _roll_factor[i] +
-                             _rc_pitch->pwm_out * _pitch_factor[i];
+                             _rc_pitch->pwm_out * _pitch_factor[i]+_rc_yaw->pwm_out*_yaw_factor[i]*(1000-m_Conv)/1000;
 
                 // record lowest roll pitch command
                 if (rpy_out[i] < rpy_low) {
@@ -238,8 +238,8 @@ void AP_MotorsMatrix::output_armed()
 					// No changes for now!
 
 
-					rpy_out[i] =    rpy_out[i] +
-									yaw_allowed * _yaw_factor[i]*m_Conv/1000;
+					//rpy_out[i] =    rpy_out[i] +
+					//				yaw_allowed * _yaw_factor[i]*(1000-m_Conv)/1000;
 
 					// record lowest roll+pitch+yaw command
 					if( rpy_out[i] < rpy_low ) {

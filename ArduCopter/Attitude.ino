@@ -112,7 +112,7 @@ get_stabilize_yaw(int32_t target_angle)
   // convert angle error to desired rate:
   //target_rate = g.pi_stabilize_yaw.kP() * angle_error;
 
-  target_rate = (g.pi_stabilize_yaw.kP() * angle_error *conv/1000)+(g.pi_stabilize_yaw_tilt.kP() * angle_error *(1000-conv)/1000);
+  target_rate = (g.pi_stabilize_yaw.kP() * angle_error * conv/1000)+(g.pi_stabilize_yaw_tilt.kP() * angle_error * (1000-conv)/1000);
   //Then comes I part. MAI Coef-s.
   target_rate+=g.pi_stabilize_yaw.get_i((0.072f * angle_error *conv/1000)+(0.051f * angle_error *(1000-conv)/1000),G_Dt);
   //target_rate;  //MAI
@@ -524,7 +524,7 @@ run_rate_controllers()
   // call rate controllers
   g.rc_1.servo_out = get_rate_roll(roll_rate_target_bf); // To motors output!
   g.rc_2.servo_out = get_rate_pitch(pitch_rate_target_bf);
-  g.rc_4.servo_out = get_rate_yaw(yaw_rate_target_bf);
+  g.rc_4.servo_out = get_rate_yaw(yaw_rate_target_bf)*20; // Что????
 #endif
 
     // run throttle controller if accel based throttle controller is enabled and active (active means it has been given a target)
