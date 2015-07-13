@@ -35,6 +35,12 @@ get_conversion_function()
 {
   int16_t conv;
 
+  if (g.p_conversion<1100)
+    return 0;
+
+  if (g.p_conversion>1500)
+    return 1000;
+
   conv = 1000-(1500-g.p_conversion)/4*10;  //Min 1100 Max 1900 -> (max-x)/800 Default 1900
   
   conv =constrain_int16(conv, 0, 1000);
@@ -54,15 +60,16 @@ get_stabilize_roll(int32_t target_angle)
   // PI regulator.
   // With conversion. 
   //First  - P part.
-  int32_t target_rate = (g.pi_stabilize_roll.kP() * target_angle*conv/1000)+(g.pi_stabilize_roll_tilt.kP() * target_angle*(1000-conv)/1000);
+  int32_t target_rate = (g.pi_stabilize_roll.kP() * target_angle*conv)+(g.pi_stabilize_roll_tilt.kP() * target_angle*(1000-conv));
   //Then comes I part. MAI Coef-s.
-  target_rate+=g.pi_stabilize_roll.get_i((0.085f * target_angle*conv/1000)+(0.15f * target_angle*(1000-conv)/1000),G_Dt);
+  target_rate+=g.pi_stabilize_roll.get_i((0.085f * target_angle*conv)+(0.15f * target_angle*(1000-conv)),G_Dt);
   //target_rate;  //MAI
   // constrain the target rate
+  
+  target_rate/=1000;
   if (!ap.disable_stab_rate_limit) {
     target_rate = constrain_int32(target_rate, -g.angle_rate_max, g.angle_rate_max);
   }
-
   // set targets for rate controller
   set_roll_rate_target(target_rate, BODY_FRAME);
 }
@@ -82,15 +89,16 @@ get_stabilize_pitch(int32_t target_angle)
 
   // PI regulator.
   // With conversion. 
-  int32_t target_rate = (g.pi_stabilize_pitch.kP() * target_angle*conv/1000)+(g.pi_stabilize_pitch_tilt.kP() * target_angle*(1000-conv)/1000);
+  int32_t target_rate = (g.pi_stabilize_pitch.kP() * target_angle*conv)+(g.pi_stabilize_pitch_tilt.kP() * target_angle*(1000-conv));
   //Then comes I part. MAI Coef-s.
-  target_rate+=g.pi_stabilize_pitch.get_i((0.098f * target_angle*conv/1000)+(0.243f * target_angle*(1000-conv)/1000),G_Dt);
+  target_rate+=g.pi_stabilize_pitch.get_i((0.098f * target_angle*conv)+(0.243f * target_angle*(1000-conv)),G_Dt);
   //target_rate;  //MAI
   // constrain the target rate
+  
+  target_rate/=1000;
   if (!ap.disable_stab_rate_limit) {
     target_rate = constrain_int32(target_rate, -g.angle_rate_max, g.angle_rate_max);
   }
-
   // set targets for rate controller
   set_pitch_rate_target(target_rate, BODY_FRAME);
 }
@@ -554,10 +562,10 @@ get_rate_roll(int32_t target_rate)
   p           = g.pid_rate_roll.get_p(rate_error);
   p_tilt           = g.pid_rate_roll_tilt.get_p(rate_error);
 
-  p = p*conv/1000+p_tilt*(1000-conv)/1000;
+  p = p*conv+p_tilt*(1000-conv);
 
 
-  output = target_rate+p;// + i + d;
+  output = target_rate+p/1000;// + i + d;
 
   // constrain output
   output = constrain_int32(output, -5000, 5000);
@@ -596,10 +604,10 @@ get_rate_pitch(int32_t target_rate)
   p           = g.pid_rate_pitch.get_p(rate_error);
   p_tilt           = g.pid_rate_pitch_tilt.get_p(rate_error);
 
-  p = p*conv/1000+p_tilt*(1000-conv)/1000;
+  p = p*conv+p_tilt*(1000-conv);
 
 
-  output = target_rate+p;// + i + d;
+  output = target_rate+p/1000;// + i + d;
 
   // constrain output
   output = constrain_int32(output, -5000, 5000);
