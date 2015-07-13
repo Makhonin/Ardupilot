@@ -470,7 +470,7 @@ public:
         pid_rate_pitch          (0.069f,          0,           0,           0),
         pid_rate_yaw            (0.082f,            0,             0,            0),
         
-        pid_rate_roll_tilt           (0.053f,           0,            0,            0),
+        pid_rate_roll_tilt           (0.053f,           0,            0,            0), // Tested new D param for roll.
         pid_rate_pitch_tilt          (0.172f,          0,           0,           0),
         pid_rate_yaw_tilt            (0,            0,             0,             0),
 
