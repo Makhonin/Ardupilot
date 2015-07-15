@@ -62,7 +62,7 @@ get_stabilize_roll(int32_t target_angle)
   //First  - P part.
   int32_t target_rate = (g.pi_stabilize_roll.kP() * target_angle*conv)+(g.pi_stabilize_roll_tilt.kP() * target_angle*(1000-conv));
   //Then comes I part. MAI Coef-s.
-  target_rate+=g.pi_stabilize_roll.get_i((0.118f * target_angle*conv)+(0.15f * target_angle*(1000-conv)),G_Dt);
+  target_rate+=g.pi_stabilize_roll.get_i((0.118f * target_angle*conv)+(0.118f * target_angle*(1000-conv)),G_Dt);
   //target_rate;  //MAI
   // constrain the target rate
   
@@ -91,7 +91,7 @@ get_stabilize_pitch(int32_t target_angle)
   // With conversion. 
   int32_t target_rate = (g.pi_stabilize_pitch.kP() * target_angle*conv)+(g.pi_stabilize_pitch_tilt.kP() * target_angle*(1000-conv));
   //Then comes I part. MAI Coef-s.
-  target_rate+=g.pi_stabilize_pitch.get_i((0.170f * target_angle*conv)+(0.243f * target_angle*(1000-conv)),G_Dt);
+  target_rate+=g.pi_stabilize_pitch.get_i((1.20f * target_angle*conv)+(1.543f * target_angle*(1000-conv)),G_Dt);
   //target_rate;  //MAI
   // constrain the target rate
   
@@ -554,7 +554,7 @@ get_rate_roll(int32_t target_rate)
   int16_t conv = get_conversion_function();
   // get current rate
   current_rate    = (omega.x * DEGX100);
-
+  current_rate/=57;
   // call pid controller Rate stab!!!
   //rate_error  = target_rate - current_rate;
   rate_error  = -current_rate;
@@ -597,7 +597,7 @@ get_rate_pitch(int32_t target_rate)
   int16_t conv = get_conversion_function(); //0 to 1000
   // get current rate
   current_rate    = (omega.y * DEGX100);
-
+  current_rate/=57;
   // call pid controller
   rate_error  = -current_rate;
 
@@ -636,7 +636,7 @@ get_rate_yaw(int32_t target_rate)
 
   // rate control
   rate_error              = target_rate - (omega.z * DEGX100);
-
+  //rate_error/=57;
 
 
   output  = target_rate;//p+i+d;
