@@ -62,7 +62,7 @@ get_stabilize_roll(int32_t target_angle)
   //First  - P part.
   int32_t target_rate = (g.pi_stabilize_roll.kP() * target_angle*conv)+(g.pi_stabilize_roll_tilt.kP() * target_angle*(1000-conv));
   //Then comes I part. MAI Coef-s.
-  target_rate+=g.pi_stabilize_roll.get_i((0.118f * target_angle*conv)+(0.118f * target_angle*(1000-conv)),G_Dt);
+  target_rate+=g.pi_stabilize_roll.get_i((0.118f * target_angle*conv)+(0.08f * target_angle*(1000-conv)),G_Dt);
   //target_rate;  //MAI
   // constrain the target rate
   
@@ -91,7 +91,7 @@ get_stabilize_pitch(int32_t target_angle)
   // With conversion. 
   int32_t target_rate = (g.pi_stabilize_pitch.kP() * target_angle*conv)+(g.pi_stabilize_pitch_tilt.kP() * target_angle*(1000-conv));
   //Then comes I part. MAI Coef-s.
-  target_rate+=g.pi_stabilize_pitch.get_i((1.20f * target_angle*conv)+(1.543f * target_angle*(1000-conv)),G_Dt);
+  target_rate+=g.pi_stabilize_pitch.get_i((1.9f * target_angle*conv)+(2.543f * target_angle*(1000-conv)),G_Dt);
   //target_rate;  //MAI
   // constrain the target rate
   

@@ -138,10 +138,10 @@ static void read_radio()
 
     //int32_t roll_angle2 = (wrap_180_cd(ahrs.roll_sensor)+g.angle_max)/36-g.angle_max/36; /* (x/MAX+1)/2*1000/180*MAX/100 */
     // Because get_rate_.. output is in degrees/something
-    int32_t roll_angle2 = (wrap_180_cd(get_rate_roll(roll_rate_target_bf)))*(1000-get_conversion_function())/4500*20;//get_rate_roll(roll_rate_target_bf);
+    int32_t roll_angle2 = (wrap_180_cd(get_rate_roll(roll_rate_target_bf)))*(1000-get_conversion_function())/4500*10;//get_rate_roll(roll_rate_target_bf);
     int32_t yaw_angle2 = (wrap_180_cd(get_rate_yaw(yaw_rate_target_bf)))*(get_conversion_function())/4500*20;
     
-    roll_angle2 = constrain_int32(roll_angle2, -330,330);
+    roll_angle2 = constrain_int32(roll_angle2, -500,500);
     yaw_angle2 = constrain_int32(yaw_angle2, -166, 166);
     
     if ( periods[7] > CONV_THROTTLE )
