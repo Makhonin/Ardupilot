@@ -140,9 +140,11 @@ static void read_radio()
     // Because get_rate_.. output is in degrees/something
     int32_t roll_angle2 = (wrap_180_cd(get_rate_roll(roll_rate_target_bf)))*(1000-get_conversion_function())/4500*10;//get_rate_roll(roll_rate_target_bf);
     int32_t yaw_angle2 = (wrap_180_cd(get_rate_yaw(yaw_rate_target_bf)))*(get_conversion_function())/4500*20;
+    int32_t pitch_angle2 = (wrap_180_cd(get_rate_pitch(pitch_rate_target_bf)))*(1000-get_conversion_function())/4500*10;
     
     roll_angle2 = constrain_int32(roll_angle2, -500,500);
     yaw_angle2 = constrain_int32(yaw_angle2, -166, 166);
+    pitch_angle2 = constrain_int32(pitch_angle2, -166, 166);
     
     if ( periods[7] > CONV_THROTTLE )
     { //qua
@@ -151,6 +153,10 @@ static void read_radio()
       hal.rcout->enable_ch(7);
       hal.rcout->write(7, 2000-(-yaw_angle2));
       hal.rcout->set_freq(0xC0, 50);
+      setServo(0,(yaw_angle2)+1000);
+      setServo(1,(yaw_angle2)+1000);
+      setServo(2,2000-(-yaw_angle2));
+      setServo(3,2000-(-yaw_angle2));
       g.p_conversion=1500.0f;
     }
     else
@@ -162,11 +168,18 @@ static void read_radio()
         g.p_conversion+=(periods[7]-g.p_conversion)*0.1f;
       }
 
+      //Servo part.
+      
       hal.rcout->enable_ch(6);
       hal.rcout->write(6, (1500-g.p_conversion)*10/4+1000-roll_angle2+yaw_angle2);
       hal.rcout->enable_ch(7);
       hal.rcout->write(7, 2000-(1500-g.p_conversion)*10/4-roll_angle2+yaw_angle2);
       hal.rcout->set_freq(0xC0, 50);
+      
+      setServo(0,(1500-g.p_conversion)*10/4+1000-roll_angle2+yaw_angle2+pitch_angle2);
+      setServo(1,(1500-g.p_conversion)*10/4+1000-roll_angle2+yaw_angle2-pitch_angle2);
+      setServo(2,2000-(1500-g.p_conversion)*10/4-roll_angle2+yaw_angle2+pitch_angle2);
+      setServo(3,2000-(1500-g.p_conversion)*10/4-roll_angle2+yaw_angle2-pitch_angle2);
       /*hal.rcout->enable_ch(6);
        hal.rcout->write(6, (periods[7]-1500)*10/4+1000);
        hal.rcout->enable_ch(7);

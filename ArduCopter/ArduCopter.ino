@@ -102,6 +102,7 @@
 #include <AP_ADC_AnalogSource.h>
 #include <AP_Baro.h>
 #include <AP_Compass.h>         // ArduPilot Mega Magnetometer Library
+#include <PCA9685.h>
 #include <AP_Math.h>            // ArduPilot Mega Vector/Matrix math Library
 #include <AP_Curve.h>           // Curve used to linearlise throttle pwm to thrust
 #include <AP_InertialSensor.h>  // ArduPilot Mega Inertial Sensor (accel & gyro) Library
@@ -954,6 +955,8 @@ void setup() {
     hal.rcout->write(7, 1500);
     
     hal.rcout->set_freq(0xC0, 50);
+    
+    initPCA9685();
 }
 
 /*
