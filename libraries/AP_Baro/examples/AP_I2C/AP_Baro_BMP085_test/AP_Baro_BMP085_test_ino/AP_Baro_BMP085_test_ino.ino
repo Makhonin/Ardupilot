@@ -12,6 +12,7 @@
 #include <AP_Param.h>
 #include <AP_Math.h>
 #include <AP_HAL.h>
+#include <PCA9685.h>
 #include <AP_Buffer.h>
 #include <Filter.h>
 #include <AP_Baro.h>
@@ -26,39 +27,6 @@
 /* Build this example sketch only for the APM1. */
 const AP_HAL::HAL& hal = AP_HAL_BOARD_DRIVER;
 
-#define PCA9685_I2C_ADDRESS 0x38
-#define PCA9685_I2C_ADDRESS2 0x38
-#define PCA9685_I2C_BASE_ADDRESS 0x40
-
-#define PCA9685_RESTART 0x80 // 0b10000000
-#define PCA9685_EXTCLK 0x40 // 0b01000000
-#define PCA9685_AI 0x20 // 0b00100000
-#define PCA9685_SLEEP 0x10 // 0b00010000
-#define PCA9685_SUB1 0x8 // 0b00001000
-#define PCA9685_SUB2 0x4 // 0b00000100
-#define PCA9685_SUB3 0x2 // 0b00000010
-#define PCA9685_ALLCALL 0x1 // 0b00000001
-
-//MODE 2
-#define PCA9685_INVRT 0x10 // 0b00010000
-#define PCA9685_OCH 0x8 // 0b00001000
-#define PCA9685_OUTDRV 0x4 // 0b00000100
-#define PCA9685_OUTNE1 0x2 // 0b00000010
-#define PCA9685_OUTNE2 0x1 // 0b00000001
-
-#define PCA9685_PRESCALER 0xFE
-#define PCA9685_MODE1 0x00
-#define PCA9685_MODE2 0x01
-
-#define CALC_FREQ(x) 25000000/4096/x-1
-
-#define LED_ON_L(x) 0x6+4*x
-#define LED_ON_H(x) 0x7+4*x
-#define LED_OFF_L(x) 0x8+4*x
-#define LED_OFF_H(x) 0x9+4*x
-
-#define LOW_PART(x) x&0xFF
-#define HIGH_PART(x) x>>8
 
 
 uint32_t timer;
@@ -69,51 +37,6 @@ uint16_t cnt;
 uint16_t pwm1,pwm2,pwm3;
 int16_t dird=1;
 
-uint8_t writeRegg2(uint8_t reg,uint8_t data)
-{
-  if (hal.i2c->writeRegister(PCA9685_I2C_BASE_ADDRESS , reg,data)!=0)
-  {
-    hal.console->println("PCA9685 I2C connection error.");
-  }
-}
-
-void initPCA9685()
-{
-  uint16_t led0on = 0x409;
-  uint16_t led0off = 0x1228;
-  writeRegg2(PCA9685_MODE1,0x10);
-  //uint32_t fr = 500000/4096-1;
-  writeRegg2(PCA9685_PRESCALER,133);
-  writeRegg2(PCA9685_MODE1,0x1);
-  writeRegg2(PCA9685_MODE2,0x14&(~PCA9685_INVRT));
-
-  writeRegg2(LED_ON_L(0),LOW_PART(led0on));
-  writeRegg2(LED_ON_H(0),HIGH_PART(led0on));
-  writeRegg2(LED_OFF_L(0),LOW_PART(led0off));
-  writeRegg2(LED_OFF_H(0),HIGH_PART(led0off));
-}
-
-void setPWM(uint8_t num, uint16_t on,uint16_t off)
-{
-  writeRegg2(LED_ON_L(num),LOW_PART(on));
-  writeRegg2(LED_ON_H(num),HIGH_PART(on));
-  writeRegg2(LED_OFF_L(num),LOW_PART(off));
-  writeRegg2(LED_OFF_H(num),HIGH_PART(off));
-}
-
-void setServo(uint8_t num, uint16_t pwm) //angle from 1000 to 2000
-{
-  // 4096 - 20 msecs
-  // 4096/20 - 1 msec
-  // 4096/10 - 2 msec
-  uint32_t pwm2d = 4096*((uint32_t)pwm);
-  pwm2d/=20000;
-  hal.console->printf("PWM2: %lu",pwm2d);
-  writeRegg2(LED_ON_L(num),LOW_PART(0));
-  writeRegg2(LED_ON_H(num),HIGH_PART(0));
-  writeRegg2(LED_OFF_L(num),LOW_PART(pwm2d));
-  writeRegg2(LED_OFF_H(num),HIGH_PART(pwm2d));
-}
 
 void setup()
 {
