@@ -84,10 +84,12 @@ void initPCA9685()
   writeRegg2(PCA9685_MODE1,0x1);
   writeRegg2(PCA9685_MODE2,0x14&(~PCA9685_INVRT));
 
-  writeRegg2(LED_ON_L(0),LOW_PART(led0on));
-  writeRegg2(LED_ON_H(0),HIGH_PART(led0on));
-  writeRegg2(LED_OFF_L(0),LOW_PART(led0off));
-  writeRegg2(LED_OFF_H(0),HIGH_PART(led0off));
+  for (uint8_t cn=0;cn!=16;cn++)
+  {
+  writeRegg2(LED_ON_L(cn),0);
+  writeRegg2(LED_ON_H(cn),0);
+  }
+
 }
 
 void setPWM(uint8_t num, uint16_t on,uint16_t off)
@@ -105,9 +107,10 @@ void setServo(uint8_t num, uint16_t pwm) //angle from 1000 to 2000
   // 4096/10 - 2 msec
   uint32_t pwm2d = 4096*((uint32_t)pwm);
   pwm2d/=20000;
-  hal.console->printf("PWM2: %lu",pwm2d);
-  writeRegg2(LED_ON_L(num),LOW_PART(0));
-  writeRegg2(LED_ON_H(num),HIGH_PART(0));
+  //optimize
+  //hal.console->printf("PWM2: %lu",pwm2d);
+ // writeRegg2(LED_ON_L(num),LOW_PART(0));
+  //writeRegg2(LED_ON_H(num),HIGH_PART(0));
   writeRegg2(LED_OFF_L(num),LOW_PART(pwm2d));
   writeRegg2(LED_OFF_H(num),HIGH_PART(pwm2d));
 }

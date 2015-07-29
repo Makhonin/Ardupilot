@@ -1153,13 +1153,30 @@ static void update_mount()
 #endif
 }
 
+static void update_PWM_tiltrotor(void)
+{
+  if ( g.p_conversion==1500.0f )
+    { 
+      setServo(0,(g.yaw_angle2)+1000);
+      setServo(1,(g.yaw_angle2)+1000);
+      setServo(2,2000-(-g.yaw_angle2));
+      setServo(3,2000-(-g.yaw_angle2));
+    }
+    else
+    {
+      setServo(0,(1500-g.p_conversion)*10/4+1000-g.roll_angle2+g.yaw_angle2+g.pitch_angle2);
+      setServo(1,(1500-g.p_conversion)*10/4+1000-g.roll_angle2+g.yaw_angle2-g.pitch_angle2);
+      setServo(2,2000-(1500-g.p_conversion)*10/4-g.roll_angle2+g.yaw_angle2+g.pitch_angle2);
+      setServo(3,2000-(1500-g.p_conversion)*10/4-g.roll_angle2+g.yaw_angle2-g.pitch_angle2);
+    }  
+}
 // update_batt_compass - read battery and compass
 // should be called at 10hz
 static void update_batt_compass(void)
 {
     // read battery before compass because it may be used for motor interference compensation
     read_battery();
-
+	update_PWM_tiltrotor();
 #if HIL_MODE != HIL_MODE_ATTITUDE  // don't execute in HIL mode
     if(g.compass_enabled) {
         if (compass.read()) {

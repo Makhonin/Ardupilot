@@ -382,7 +382,11 @@ public:
 
   //Conversion
   float               p_conversion=1500.0f;
-
+  //Servo parameters
+  int32_t roll_angle2;
+  int32_t yaw_angle2;
+  int32_t pitch_angle2;
+  
 #if CONFIG_HAL_BOARD == HAL_BOARD_PX4
   RC_Channel_aux          rc_9;
   RC_Channel_aux          rc_12;
