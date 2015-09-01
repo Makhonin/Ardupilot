@@ -53,7 +53,7 @@ get_stabilize_roll(int32_t target_angle)
 {
   int16_t conv = get_conversion_function(); //0 to 1000
   // angle error in degrees*100
-  target_angle = wrap_180_cd(target_angle - ahrs.roll_sensor);
+  target_angle = wrap_180_cd(target_angle/4 - ahrs.roll_sensor);
   //target_angle*=40;
   target_angle/=57;  //MAI in radians*100
   // convert to desired rate
@@ -79,7 +79,7 @@ get_stabilize_pitch(int32_t target_angle)
 {
   int16_t conv = get_conversion_function(); //0 to 1000
   // angle error in degrees*100
-  target_angle            = wrap_180_cd(target_angle - ahrs.pitch_sensor);
+  target_angle            = wrap_180_cd(target_angle/4 - ahrs.pitch_sensor);
   target_angle/=57;  //MAI in radians*100
   // convert to desired rate
   // int32_t target_rate = g.pi_stabilize_pitch.kP() * target_angle;
