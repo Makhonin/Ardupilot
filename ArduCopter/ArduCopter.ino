@@ -1164,10 +1164,32 @@ static void update_PWM_tiltrotor(void)
     }
     else
     {
-      setServo(0,(1500-g.p_conversion)*10/4+1000-g.roll_angle2+g.yaw_angle2+g.pitch_angle2);
-      setServo(1,(1500-g.p_conversion)*10/4+1000-g.roll_angle2+g.yaw_angle2-g.pitch_angle2);
-      setServo(2,2000-(1500-g.p_conversion)*10/4-g.roll_angle2+g.yaw_angle2+g.pitch_angle2);
-      setServo(3,2000-(1500-g.p_conversion)*10/4-g.roll_angle2+g.yaw_angle2-g.pitch_angle2);
+      uint16_t s1 = (1500-g.p_conversion)*10/4+1000;
+      uint16_t s2 = (1500-g.p_conversion)*10/4+1000;
+      uint16_t s3 = 2000-(1500-g.p_conversion)*10/4;
+      uint16_t s4 = 2000-(1500-g.p_conversion)*10/4;
+      
+     
+      
+      s1=constrain_int32(s1, 1000, 2000)+g.pitch_angle2;
+      s2=constrain_int32(s2, 1000, 2000)-g.pitch_angle2;
+      s3=constrain_int32(s3, 1000, 2000)+g.pitch_angle2;
+      s4=constrain_int32(s4, 1000, 2000)-g.pitch_angle2;
+      
+      //s1=constrain_int32(s1, 1000, 2000);
+      //s2=constrain_int32(s2, 1000, 2000);
+      //s3=constrain_int32(s3, 1000, 2000);
+      //s4=constrain_int32(s4, 1000, 2000);
+      
+      s1=constrain_int32(s1, 1000, 2000)-g.roll_angle2+g.yaw_angle2;
+      s2=constrain_int32(s2, 1000, 2000)-g.roll_angle2+g.yaw_angle2;
+      s3=constrain_int32(s3, 1000, 2000)-g.roll_angle2+g.yaw_angle2;
+      s4=constrain_int32(s4, 1000, 2000)-g.roll_angle2+g.yaw_angle2;
+      
+      setServo(0,s1);
+      setServo(1,s2);
+      setServo(2,s3);
+      setServo(3,s4);
     }  
 }
 // update_batt_compass - read battery and compass

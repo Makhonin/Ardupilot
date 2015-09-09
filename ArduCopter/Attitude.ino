@@ -53,7 +53,7 @@ get_stabilize_roll(int32_t target_angle)
 {
   int16_t conv = get_conversion_function(); //0 to 1000
   // angle error in degrees*100
-  target_angle = wrap_180_cd(target_angle/4 - ahrs.roll_sensor);
+  target_angle = wrap_180_cd(target_angle/2 - ahrs.roll_sensor);
   //target_angle*=40;
   target_angle/=57;  //MAI in radians*100
   // convert to desired rate
@@ -62,7 +62,7 @@ get_stabilize_roll(int32_t target_angle)
   //First  - P part.
   int32_t target_rate = (g.pi_stabilize_roll.kP() * target_angle*conv)+(g.pi_stabilize_roll_tilt.kP() * target_angle*(1000-conv));
   //Then comes I part. MAI Coef-s.
-  target_rate+=g.pi_stabilize_roll.get_i((0.118f * target_angle*conv)+(0.08f * target_angle*(1000-conv)),G_Dt);
+  target_rate+=g.pi_stabilize_roll.get_i((6.4f * target_angle*conv)+(0.00f * target_angle*(1000-conv)),G_Dt);
   //target_rate;  //MAI
   // constrain the target rate
   
@@ -79,7 +79,7 @@ get_stabilize_pitch(int32_t target_angle)
 {
   int16_t conv = get_conversion_function(); //0 to 1000
   // angle error in degrees*100
-  target_angle            = wrap_180_cd(target_angle/4 - ahrs.pitch_sensor);
+  target_angle            = wrap_180_cd(target_angle/2 - ahrs.pitch_sensor);
   target_angle/=57;  //MAI in radians*100
   // convert to desired rate
   // int32_t target_rate = g.pi_stabilize_pitch.kP() * target_angle;
@@ -91,7 +91,7 @@ get_stabilize_pitch(int32_t target_angle)
   // With conversion. 
   int32_t target_rate = (g.pi_stabilize_pitch.kP() * target_angle*conv)+(g.pi_stabilize_pitch_tilt.kP() * target_angle*(1000-conv));
   //Then comes I part. MAI Coef-s.
-  target_rate+=g.pi_stabilize_pitch.get_i((1.9f * target_angle*conv)+(2.543f * target_angle*(1000-conv)),G_Dt);
+  target_rate+=g.pi_stabilize_pitch.get_i((6.4f * target_angle*conv)+(3.84f * target_angle*(1000-conv)),G_Dt);
   //target_rate;  //MAI
   // constrain the target rate
   
@@ -122,7 +122,7 @@ get_stabilize_yaw(int32_t target_angle)
 
   target_rate = (g.pi_stabilize_yaw.kP() * angle_error * conv/1000)+(g.pi_stabilize_yaw_tilt.kP() * angle_error * (1000-conv)/1000);
   //Then comes I part. MAI Coef-s.
-  target_rate+=g.pi_stabilize_yaw.get_i((0.072f * angle_error *conv/1000)+(0.051f * angle_error *(1000-conv)/1000),G_Dt);
+  target_rate+=g.pi_stabilize_yaw.get_i((0.32f * angle_error *conv/1000)+(0.051f * angle_error *(1000-conv)/1000),G_Dt);
   //target_rate;  //MAI
 
 
