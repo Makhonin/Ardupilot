@@ -1164,10 +1164,10 @@ static void update_PWM_tiltrotor(void)
     }
     else
     {
-      uint16_t s1 = (1500-g.p_conversion)*10/4+1000;
-      uint16_t s2 = (1500-g.p_conversion)*10/4+1000;
-      uint16_t s3 = 2000-(1500-g.p_conversion)*10/4;
-      uint16_t s4 = 2000-(1500-g.p_conversion)*10/4;
+      int32_t s1 = (1500-g.p_conversion)*10/4+1000;
+      int32_t s2 = (1500-g.p_conversion)*10/4+1000;
+      int32_t s3 = 2000-(1500-g.p_conversion)*10/4;
+      int32_t s4 = 2000-(1500-g.p_conversion)*10/4;
       
      
       
