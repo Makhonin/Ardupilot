@@ -474,9 +474,9 @@ public:
   pid_rate_pitch          (3.933f,          0,           0,           0), //FIX IN MAVLINK
   pid_rate_yaw            (4.674f,            0,             0,            0), //FIX IN MAVLINK
 
-  pid_rate_roll_tilt           (0.17f,           0,            0,            0), // Tested new D param for roll.
-  pid_rate_pitch_tilt          (0.375f,          0,           0,           0),
-  pid_rate_yaw_tilt            (0,            0,             0,             0),
+  pid_rate_roll_tilt           (0.9f,           0,            0,            0), // Tested new D param for roll.
+  pid_rate_pitch_tilt          (0.9f,          0,           0,           0),
+  pid_rate_yaw_tilt            (3.0f,            0,             0,             0),
 
   pid_loiter_rate_lat     (0,         0,          0,          0),
   pid_loiter_rate_lon     (0,         0,          0,          0),
@@ -504,9 +504,9 @@ public:
   pi_stabilize_pitch      (0.14f,     1,      350),
   pi_stabilize_yaw        (4.674f,       1,        350), //FIX IN MAVLINK
 
-  pi_stabilize_roll_tilt       (1.0f,      1,       350),
-  pi_stabilize_pitch_tilt      (2.0f,     1,      500),
-  pi_stabilize_yaw_tilt        (0.47f,       1,        350),
+  pi_stabilize_roll_tilt       (4.80f,      1,       350),
+  pi_stabilize_pitch_tilt      (4.80f,     1,      500),
+  pi_stabilize_yaw_tilt        (0.675f,       1,        350),
 
   pi_alt_hold             (0,            0,             0)
   {

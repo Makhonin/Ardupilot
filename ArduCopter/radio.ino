@@ -138,15 +138,15 @@ static void read_radio()
 
     //int32_t roll_angle2 = (wrap_180_cd(ahrs.roll_sensor)+g.angle_max)/36-g.angle_max/36; /* (x/MAX+1)/2*1000/180*MAX/100 */
     // Because get_rate_.. output is in degrees/something
-    g.roll_angle2 = (wrap_180_cd(get_rate_roll(roll_rate_target_bf)))*(1000-get_conversion_function())/4500*20;//get_rate_roll(roll_rate_target_bf);
+    g.roll_angle2 = (wrap_180_cd(get_rate_roll(roll_rate_target_bf)))*(1000-get_conversion_function())/4500*2;//get_rate_roll(roll_rate_target_bf);
     g.yaw_angle2 = (wrap_180_cd(get_rate_yaw(yaw_rate_target_bf)))*(get_conversion_function())/4500*20;
     
     //TODO FIX AFTER WORKING WITH PLANE MODE 
     // FIX TO g.pi_stabilize_pitch_tilt
     float lin_presc = 2.0f/g.pi_stabilize_pitch.kP();
     
-    g.pitch_angle2 = (wrap_180_cd(get_rate_pitch(pitch_rate_target_bf)))*(1000-get_conversion_function())/4500*20*lin_presc;
-    
+   // g.pitch_angle2 = (wrap_180_cd(get_rate_pitch(pitch_rate_target_bf)))*(1000-get_conversion_function())/g.pi_stabilize_pitch.kP()/450*4; // /4500*x -> 450 * (x/10)
+    g.pitch_angle2 = (wrap_180_cd(get_rate_pitch(pitch_rate_target_bf)))*(1000-get_conversion_function())/4500*4;
     g.roll_angle2 = constrain_int32(g.roll_angle2, -250,250);
     g.yaw_angle2 = constrain_int32(g.yaw_angle2, -166, 166);
     //g.pitch_angle2 = constrain_int32(g.pitch_angle2, 0, 1000);
