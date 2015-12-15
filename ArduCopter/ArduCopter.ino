@@ -1112,9 +1112,10 @@ static void fast_loop()
 // ---------------------------
 static void throttle_loop()
 {
+  update_PWM_tiltrotor();
     // get altitude and climb rate from inertial lib
     read_inertial_altitude();
-
+    
     // Update the throttle ouput
     // -------------------------
     update_throttle_mode();
@@ -1157,10 +1158,10 @@ static void update_PWM_tiltrotor(void)
 {
   if ( g.p_conversion==1500.0f )
     { 
-      setServo(0,(g.yaw_angle2)+1000);
-      setServo(1,(g.yaw_angle2)+1000);
-      setServo(2,2000-(-g.yaw_angle2));
-      setServo(3,2000-(-g.yaw_angle2));
+      setServo(4,(g.yaw_angle2)+1000);
+      setServo(5,(g.yaw_angle2)+1000);
+      setServo(6,2000-(-g.yaw_angle2));
+      setServo(7,2000-(-g.yaw_angle2));
     }
     else
     {
@@ -1186,10 +1187,10 @@ static void update_PWM_tiltrotor(void)
       s3=constrain_int32(s3, 1000, 2000)-g.roll_angle2+g.yaw_angle2;
       s4=constrain_int32(s4, 1000, 2000)-g.roll_angle2+g.yaw_angle2;
       
-      setServo(0,s1);
-      setServo(1,s2);
-      setServo(2,s3);
-      setServo(3,s4);
+      setServo(4,s1);
+      setServo(5,s2);
+      setServo(6,s3);
+      setServo(7,s4);
     }  
 }
 // update_batt_compass - read battery and compass
@@ -1198,7 +1199,7 @@ static void update_batt_compass(void)
 {
     // read battery before compass because it may be used for motor interference compensation
     read_battery();
-	update_PWM_tiltrotor();
+	//update_PWM_tiltrotor();
 #if HIL_MODE != HIL_MODE_ATTITUDE  // don't execute in HIL mode
     if(g.compass_enabled) {
         if (compass.read()) {

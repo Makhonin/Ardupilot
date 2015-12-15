@@ -21,6 +21,7 @@ int32_t APM_PI::get_p(int32_t error)
 
 int32_t APM_PI::get_i(int32_t error, float dt)
 {
+	//imax=4500000;
     if(dt != 0) {
         _integrator += ((float)error * _ki) * dt;
 
