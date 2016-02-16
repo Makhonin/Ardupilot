@@ -1112,7 +1112,9 @@ static void fast_loop()
 // ---------------------------
 static void throttle_loop()
 {
-  update_PWM_tiltrotor();
+  //update_PWM_tiltrotor1();
+  //update_PWM_tiltrotor3();
+  //update_PWM_tiltrotor();
     // get altitude and climb rate from inertial lib
     read_inertial_altitude();
     
@@ -1156,15 +1158,6 @@ static void update_mount()
 
 static void update_PWM_tiltrotor(void)
 {
-  if ( g.p_conversion==1500.0f )
-    { 
-      setServo(4,(g.yaw_angle2)+1000);
-      setServo(5,(g.yaw_angle2)+1000);
-      setServo(6,2000-(-g.yaw_angle2));
-      setServo(7,2000-(-g.yaw_angle2));
-    }
-    else
-    {
       int32_t s1 = (1500-g.p_conversion)*10/4+1000;
       int32_t s2 = (1500-g.p_conversion)*10/4+1000;
       int32_t s3 = 2000-(1500-g.p_conversion)*10/4;
@@ -1191,15 +1184,80 @@ static void update_PWM_tiltrotor(void)
       setServo(5,s2);
       setServo(6,s3);
       setServo(7,s4);
+}
+
+static void update_PWM_tiltrotor1(void)
+{
+  if ( g.p_conversion==1500.0f )
+    { 
+      setServo(4,(g.yaw_angle2)+1000);
+      
+    }
+    else
+    {
+      int32_t s1 = (1500-g.p_conversion)*10/4+1000;
+
+      s1=constrain_int32(s1, 1000, 2000)+g.pitch_angle2;
+
+      s1=constrain_int32(s1, 1000, 2000)-g.roll_angle2+g.yaw_angle2;
+
+      setServo(4,s1);
     }  
 }
+
+static void update_PWM_tiltrotor2(void)
+{
+  if ( g.p_conversion==1500.0f )
+    { 
+      setServo(5,(g.yaw_angle2)+1000);
+      
+    }
+    else
+    {
+      int32_t s2 = (1500-g.p_conversion)*10/4+1000;
+      s2=constrain_int32(s2, 1000, 2000)-g.pitch_angle2;
+      s2=constrain_int32(s2, 1000, 2000)-g.roll_angle2+g.yaw_angle2;
+      setServo(5,s2);
+    }  
+}
+
+static void update_PWM_tiltrotor3(void)
+{
+  if ( g.p_conversion==1500.0f )
+    { 
+      setServo(6,2000-(-g.yaw_angle2));
+    }
+    else
+    {
+      int32_t s3 = 2000-(1500-g.p_conversion)*10/4;
+      s3=constrain_int32(s3, 1000, 2000)+g.pitch_angle2;
+      s3=constrain_int32(s3, 1000, 2000)-g.roll_angle2+g.yaw_angle2;
+      setServo(6,s3);
+    }  
+}
+
+static void update_PWM_tiltrotor4(void)
+{
+    if ( g.p_conversion==1500.0f )
+    { 
+      setServo(7,2000-(-g.yaw_angle2));
+    }
+    else
+    {
+      int32_t s4 = 2000-(1500-g.p_conversion)*10/4;
+      s4=constrain_int32(s4, 1000, 2000)-g.pitch_angle2;
+      s4=constrain_int32(s4, 1000, 2000)-g.roll_angle2+g.yaw_angle2;
+      setServo(7,s4);
+    }  
+}
+
 // update_batt_compass - read battery and compass
 // should be called at 10hz
 static void update_batt_compass(void)
 {
     // read battery before compass because it may be used for motor interference compensation
     read_battery();
-	//update_PWM_tiltrotor();
+	update_PWM_tiltrotor();
 #if HIL_MODE != HIL_MODE_ATTITUDE  // don't execute in HIL mode
     if(g.compass_enabled) {
         if (compass.read()) {
@@ -1234,6 +1292,8 @@ static void ten_hz_logging_loop()
 // should be run at 50hz
 static void fifty_hz_logging_loop()
 {
+  //update_PWM_tiltrotor2();
+  //update_PWM_tiltrotor4();
 #if HIL_MODE != HIL_MODE_DISABLED
     // HIL for a copter needs very fast update of the servo values
     gcs_send_message(MSG_RADIO_OUT);

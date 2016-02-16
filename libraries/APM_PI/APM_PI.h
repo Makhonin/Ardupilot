@@ -81,7 +81,7 @@ public:
     float           kI() const {
         return _ki.get();
     }
-    int16_t         imax() const {
+    int32_t         imax() const {
         return _imax.get();
     }
 
@@ -106,10 +106,10 @@ public:
 private:
     AP_Float        _kp;
     AP_Float        _ki;
-    AP_Int16        _imax;
+    AP_Int32        _imax;
 
     // integrator value
-    float           _integrator;
+    AP_Int32           _integrator;
 };
 
 #endif

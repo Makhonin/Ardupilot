@@ -68,6 +68,7 @@ get_stabilize_roll(int32_t target_angle)
   // constrain the target rate
   //target_angle/=57;
   target_rate/=1000;
+  //target_rate=0;
   if (!ap.disable_stab_rate_limit) {
     target_rate = constrain_int32(target_rate, -g.angle_rate_max, g.angle_rate_max);
   }
